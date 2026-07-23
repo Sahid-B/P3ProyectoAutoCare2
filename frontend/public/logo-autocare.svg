@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Logo de AutoCare">
+  <defs>
+    <linearGradient id="fondoAutocare" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6" />
+      <stop offset="1" stop-color="#1e3a8a" />
+    </linearGradient>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#fondoAutocare)" />
+
+  <!-- Carroceria -->
+  <path
+    fill="#ffffff"
+    d="M112 322c0-11 7-20 18-22l31-6 45-55c9-11 22-17 36-17h84c14 0 28 7 36 19l33 52 31 7c11 2 18 11 18 22v34c0 9-7 16-16 16h-28a42 42 0 0 0-84 0H240a42 42 0 0 0-84 0h-28c-9 0-16-7-16-16z"
+  />
+  <!-- Ventanas -->
+  <path fill="#1e3a8a" d="M204 240l30-36c4-5 10-8 17-8h13v44z" />
+  <path fill="#1e3a8a" d="M280 196h24c7 0 14 4 18 10l23 34h-65z" />
+  <!-- Ruedas -->
+  <circle cx="198" cy="372" r="34" fill="#ffffff" />
+  <circle cx="198" cy="372" r="15" fill="#1e3a8a" />
+  <circle cx="330" cy="372" r="34" fill="#ffffff" />
+  <circle cx="330" cy="372" r="15" fill="#1e3a8a" />
+
+  <!-- Engranaje de mantenimiento -->
+  <g transform="translate(374 138)">
+    <g fill="#ffffff">
+      <circle r="52" />
+      <rect x="-11" y="-74" width="22" height="26" rx="6" />
+      <rect x="-11" y="48" width="22" height="26" rx="6" />
+      <rect x="-74" y="-11" width="26" height="22" rx="6" />
+      <rect x="48" y="-11" width="26" height="22" rx="6" />
+      <rect x="-11" y="-74" width="22" height="26" rx="6" transform="rotate(45)" />
+      <rect x="-11" y="48" width="22" height="26" rx="6" transform="rotate(45)" />
+      <rect x="-74" y="-11" width="26" height="22" rx="6" transform="rotate(45)" />
+      <rect x="48" y="-11" width="26" height="22" rx="6" transform="rotate(45)" />
+    </g>
+    <circle r="21" fill="#1e3a8a" />
+  </g>
+</svg>
