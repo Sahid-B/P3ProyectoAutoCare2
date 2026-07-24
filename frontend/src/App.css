@@ -1,0 +1,4 @@
+/* Las clases utilitarias que antes vivian aqui (contenedor, seccion,
+   etiqueta-temporal) fueron reemplazadas por componentes y props de Chakra UI
+   (Container, Box, Badge, etc.). Se conserva el archivo para no alterar la
+   estructura del proyecto. */

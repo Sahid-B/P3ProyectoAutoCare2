@@ -1,0 +1,3 @@
+/* Los estilos del boton ahora se definen en el tema de Chakra UI
+   (src/theme/theme.js -> components.Button). Se conserva el archivo para no
+   alterar la estructura del proyecto. */

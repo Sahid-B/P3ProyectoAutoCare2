@@ -1,0 +1,8 @@
+/* Estilos globales minimos de AutoCare.
+   La mayor parte del diseno (colores, tipografia, espaciados, sombras y el reset
+   de estilos) ahora se maneja con Chakra UI y el tema en src/theme/theme.js.
+   Aqui solo se deja el suavizado de fuentes. */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
