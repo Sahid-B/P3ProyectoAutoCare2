@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // Configuracion de Vite para AutoCare.
-// La PWA se mantiene en su configuracion base: registra un Service Worker
-// que precarga los archivos de la aplicacion. La logica offline completa
-// (IndexedDB, sincronizacion y notificaciones push) se implementara mas adelante.
+// La PWA registra un Service Worker que precarga los archivos estaticos de la
+// aplicacion y define un fallback de navegacion para cuando no hay conexion.
+// La sincronizacion completa y las notificaciones push se implementaran mas adelante.
 export default defineConfig({
   plugins: [
     react(),
@@ -15,7 +15,24 @@ export default defineConfig({
       manifest: false,
       injectRegister: 'auto',
       workbox: {
+        // Precarga de recursos estaticos (cache basico).
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        cleanupOutdatedCaches: true,
+        // Fallback offline: cualquier navegacion sin conexion sirve index.html
+        // (la SPA se encarga del enrutado). Las llamadas al API quedan excluidas.
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/],
+        // Cache en tiempo de ejecucion para las imagenes de vehiculos (URLs externas).
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'autocare-imagenes',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+        ],
       },
     }),
   ],

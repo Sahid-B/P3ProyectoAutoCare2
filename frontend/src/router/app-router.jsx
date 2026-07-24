@@ -6,6 +6,10 @@ import {
   Dashboard,
   NoEncontrado,
   EnConstruccion,
+  Vehiculos,
+  NuevoVehiculo,
+  EditarVehiculo,
+  DetalleVehiculo,
 } from '../page/index.jsx';
 
 import ProtectedRoute from '../components/protected-route/index.jsx';
@@ -30,15 +34,36 @@ function AppRouter() {
           }
         />
 
+        {/* Modulo de vehiculos (Parte 3) */}
         <Route
           path="/vehiculos"
           element={
             <ProtectedRoute>
-              <EnConstruccion
-                titulo="Vehiculos"
-                descripcion="Aqui se listaran y administraran los vehiculos registrados por el usuario."
-                parte="la Parte 3"
-              />
+              <Vehiculos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vehiculos/nuevo"
+          element={
+            <ProtectedRoute>
+              <NuevoVehiculo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vehiculos/:id"
+          element={
+            <ProtectedRoute>
+              <DetalleVehiculo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vehiculos/:id/editar"
+          element={
+            <ProtectedRoute>
+              <EditarVehiculo />
             </ProtectedRoute>
           }
         />

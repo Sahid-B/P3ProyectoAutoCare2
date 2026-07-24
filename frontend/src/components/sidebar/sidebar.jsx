@@ -9,11 +9,12 @@ import {
 } from 'react-icons/fa6';
 
 const enlaces = [
-  { ruta: '/dashboard', texto: 'Dashboard', icono: FaGaugeHigh },
-  { ruta: '/vehiculos', texto: 'Vehiculos', icono: FaCar },
-  { ruta: '/mantenimientos', texto: 'Mantenimientos', icono: FaWrench },
-  { ruta: '/historial', texto: 'Historial', icono: FaFolderOpen },
-  { ruta: '/perfil', texto: 'Perfil', icono: FaUser },
+  { ruta: '/dashboard', texto: 'Dashboard', icono: FaGaugeHigh, exacto: true },
+  // Vehiculos se marca activo tambien en sus sub-rutas (nuevo, detalle, editar).
+  { ruta: '/vehiculos', texto: 'Vehiculos', icono: FaCar, exacto: false },
+  { ruta: '/mantenimientos', texto: 'Mantenimientos', icono: FaWrench, exacto: true },
+  { ruta: '/historial', texto: 'Historial', icono: FaFolderOpen, exacto: true },
+  { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
 ];
 
 
@@ -48,7 +49,7 @@ function Sidebar() {
             key={enlace.ruta}
             as={RouterNavLink}
             to={enlace.ruta}
-            end
+            end={enlace.exacto}
             px={3}
             py={2}
             borderRadius="md"

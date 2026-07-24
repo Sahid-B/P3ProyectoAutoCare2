@@ -2,15 +2,20 @@ import { Box, Flex, Grid } from '@chakra-ui/react';
 import Header from '../header/index.jsx';
 import Footer from '../footer/index.jsx';
 import Sidebar from '../sidebar/index.jsx';
+import OnlineStatus from '../online-status/index.jsx';
 
 /**
  * Estructura comun de las paginas: Header + contenido + Footer.
- * Con conSidebar={true} se muestra ademas el menu lateral del area privada.
+ * Con conSidebar={true} se muestra ademas el menu lateral del area privada
+ * y el indicador de conexion (OnlineStatus).
  */
 function Layout({ children, conSidebar = false }) {
   return (
     <Flex direction="column" minH="100vh">
       <Header />
+
+      {/* Aviso de conexion en el area autenticada */}
+      {conSidebar && <OnlineStatus />}
 
       <Box as="main" flex="1" w="100%">
         {conSidebar ? (

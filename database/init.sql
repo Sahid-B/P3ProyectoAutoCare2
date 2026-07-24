@@ -27,3 +27,28 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla de vehiculos (Parte 3)
+-- Cada vehiculo pertenece a un usuario. La placa es unica por usuario.
+CREATE TABLE IF NOT EXISTS vehiculos (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    marca VARCHAR(60) NOT NULL,
+    modelo VARCHAR(60) NOT NULL,
+    anio INTEGER NOT NULL,
+    placa VARCHAR(20) NOT NULL,
+    color VARCHAR(40),
+    tipo_vehiculo VARCHAR(20) NOT NULL DEFAULT 'otro',
+    kilometraje_actual INTEGER NOT NULL DEFAULT 0,
+    imagen_url TEXT,
+    observaciones TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Reglas de integridad
+    CONSTRAINT chk_vehiculos_anio CHECK (anio >= 1900 AND anio <= 2100),
+    CONSTRAINT chk_vehiculos_kilometraje CHECK (kilometraje_actual >= 0),
+    CONSTRAINT uq_vehiculos_placa_usuario UNIQUE (usuario_id, placa)
+);
+
+-- Indice para acelerar el listado de vehiculos por usuario
+CREATE INDEX IF NOT EXISTS idx_vehiculos_usuario ON vehiculos(usuario_id);
+

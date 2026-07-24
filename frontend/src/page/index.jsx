@@ -5,3 +5,9 @@ export { default as Registro } from './registro/index.jsx';
 export { default as Dashboard } from './dashboard/index.jsx';
 export { default as NoEncontrado } from './no-encontrado/index.jsx';
 export { default as EnConstruccion } from './en-construccion/index.jsx';
+
+// Modulo de vehiculos (Parte 3)
+export { default as Vehiculos } from './vehiculos/index.jsx';
+export { default as NuevoVehiculo } from './nuevo-vehiculo/index.jsx';
+export { default as EditarVehiculo } from './editar-vehiculo/index.jsx';
+export { default as DetalleVehiculo } from './detalle-vehiculo/index.jsx';

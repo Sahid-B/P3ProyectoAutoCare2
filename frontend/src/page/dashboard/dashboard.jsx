@@ -34,12 +34,11 @@ import {
 } from 'react-icons/fa6';
 import Layout from '../../components/layout/index.jsx';
 import { obtenerEstadoApi } from '../../services/api-service.js';
+import { getVehicles } from '../../services/vehicle-service.js';
 
-// Datos simulados: sirven unicamente para mostrar el diseno del panel.
-// Se reemplazaran por informacion real cuando existan los modulos de vehiculos
-// y mantenimientos.
-const indicadores = [
-  { titulo: 'Total de vehiculos', valor: '3', detalle: 'Registrados en la cuenta', icono: FaCar },
+// Indicadores todavia simulados (se completaran en las siguientes partes).
+// El indicador "Total de vehiculos" SI usa datos reales (ver mas abajo).
+const indicadoresTemporales = [
   { titulo: 'Proximo mantenimiento', valor: '12 dias', detalle: 'Cambio de aceite - Aveo 2015', icono: FaClock },
   { titulo: 'Alertas activas', valor: '2', detalle: 'Matricula y revision de frenos', icono: FaTriangleExclamation },
   { titulo: 'Gastos del mes', valor: '$ 145,00', detalle: 'Suma de servicios registrados', icono: FaDollarSign },
@@ -56,6 +55,8 @@ const actividadReciente = [
 // Panel principal del area privada.
 function Dashboard() {
   const [estadoApi, setEstadoApi] = useState({ cargando: true, datos: null, error: '' });
+  // Total de vehiculos: dato REAL del usuario autenticado.
+  const [totalVehiculos, setTotalVehiculos] = useState({ cargando: true, valor: 0 });
 
   useEffect(() => {
     let activo = true;
@@ -68,10 +69,30 @@ function Dashboard() {
         if (activo) setEstadoApi({ cargando: false, datos: null, error: error.message });
       });
 
+    getVehicles()
+      .then((respuesta) => {
+        if (activo) setTotalVehiculos({ cargando: false, valor: (respuesta.data || []).length });
+      })
+      .catch(() => {
+        if (activo) setTotalVehiculos({ cargando: false, valor: 0 });
+      });
+
     return () => {
       activo = false;
     };
   }, []);
+
+  // El primer indicador usa el conteo real; los demas siguen siendo temporales.
+  const indicadores = [
+    {
+      titulo: 'Total de vehiculos',
+      valor: totalVehiculos.cargando ? '...' : String(totalVehiculos.valor),
+      detalle: 'Registrados en tu cuenta',
+      icono: FaCar,
+      real: true,
+    },
+    ...indicadoresTemporales.map((indicador) => ({ ...indicador, real: false })),
+  ];
 
   return (
     <Layout conSidebar>
@@ -89,10 +110,10 @@ function Dashboard() {
         </Badge>
       </Flex>
 
-      <Alert status="warning" borderRadius="md" mb={6} fontSize="sm">
+      <Alert status="info" borderRadius="md" mb={6} fontSize="sm">
         <AlertIcon />
-        Todos los valores mostrados en esta pagina son datos simulados de la Parte 1. No provienen
-        todavia de la base de datos.
+        El total de vehiculos usa datos reales de tu cuenta. El resto de indicadores y la actividad
+        reciente son datos temporales que se completaran en las siguientes partes.
       </Alert>
 
       {/* Indicadores */}
@@ -107,15 +128,13 @@ function Dashboard() {
             borderRadius="lg"
             boxShadow="sm"
           >
-            <Flex
-              align="center"
-              justify="center"
-              boxSize="42px"
-              mb={2}
-              bg="brand.50"
-              borderRadius="md"
-            >
-              <Icon as={indicador.icono} boxSize={5} color="brand.600" />
+            <Flex align="center" justify="space-between" mb={2}>
+              <Flex align="center" justify="center" boxSize="42px" bg="brand.50" borderRadius="md">
+                <Icon as={indicador.icono} boxSize={5} color="brand.600" />
+              </Flex>
+              <Badge colorScheme={indicador.real ? 'success' : 'warning'} fontSize="0.65rem">
+                {indicador.real ? 'Real' : 'Temporal'}
+              </Badge>
             </Flex>
             <Stat>
               <StatLabel color="secondary.500">{indicador.titulo}</StatLabel>
