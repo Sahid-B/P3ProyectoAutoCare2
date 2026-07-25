@@ -2,12 +2,17 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
+const { OAuth2Client } = require('google-auth-library');
 const { pool } = require('../config/database');
-const { enviarCodigoOTP } = require('../services/email-service');
+const { enviarCodigoOTP, smtpConfigurado } = require('../services/email-service');
+const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/auth-config');
 
-
-const JWT_SECRET = process.env.JWT_SECRET || 'autocare_secret_key_change_in_production';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Cliente de Google OAuth 2.0. El frontend (Google Identity Services) entrega un
+// ID token que aqui se verifica (firma, aud, iss, exp) con la libreria oficial.
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 /**
  * Registro de un nuevo usuario.
@@ -73,7 +78,7 @@ async function registrar(req, res) {
         apellido: usuario.apellido,
       },
       JWT_SECRET,
-      { expiresIn: '24h' },
+      { expiresIn: JWT_EXPIRES_IN },
     );
 
     return res.status(201).json({
@@ -171,7 +176,7 @@ async function iniciarSesion(req, res) {
         apellido: usuario.apellido,
       },
       JWT_SECRET,
-      { expiresIn: '24h' },
+      { expiresIn: JWT_EXPIRES_IN },
     );
 
     delete usuario.password_hash;
@@ -258,7 +263,7 @@ async function verificarLogin2FA(req, res) {
         apellido: usuario.apellido,
       },
       JWT_SECRET,
-      { expiresIn: '24h' },
+      { expiresIn: JWT_EXPIRES_IN },
     );
 
     delete usuario.totp_secret;
@@ -468,6 +473,14 @@ async function alternar2FA(req, res) {
  */
 async function enviarOtpPrueba(req, res) {
   try {
+    // Si SMTP no esta configurado, se responde de forma controlada (no 500).
+    if (!smtpConfigurado()) {
+      return res.status(503).json({
+        success: false,
+        message: 'El envio de correo (SMTP) no esta configurado en el servidor.',
+      });
+    }
+
     const usuarioId = req.usuario?.id;
     const resUser = await pool.query('SELECT correo FROM users WHERE id = $1', [usuarioId]);
 
@@ -486,9 +499,9 @@ async function enviarOtpPrueba(req, res) {
     const resultadoCorreo = await enviarCodigoOTP(correo, codigoOtp);
 
     if (!resultadoCorreo.success) {
-      return res.status(500).json({
+      return res.status(502).json({
         success: false,
-        message: `Error al enviar correo SMTP: ${resultadoCorreo.error}`,
+        message: 'No se pudo enviar el correo de verificacion. Revisa la configuracion SMTP.',
       });
     }
 
@@ -529,21 +542,47 @@ async function autenticarConGoogle(req, res) {
       });
     }
 
-    const respuestaGoogle = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${tokenGoogle}`);
-    if (!respuestaGoogle.ok) {
-      return res.status(401).json({
+    if (!googleClient) {
+      return res.status(503).json({
         success: false,
-        message: 'El token de Google no es valido o ha expirado.',
+        message: 'El inicio de sesion con Google no esta configurado en el servidor.',
       });
     }
 
-    const payload = await respuestaGoogle.json();
-    const { sub: googleId, email, given_name, family_name, name } = payload;
+    // Verificacion oficial del ID token: valida firma, aud (GOOGLE_CLIENT_ID),
+    // iss y exp. Lanza excepcion si el token no es valido o Google no responde.
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: tokenGoogle,
+        audience: GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (errorVerificacion) {
+      const detalle = String(errorVerificacion?.message || '');
+      // Si el problema es de red (no se pudo contactar a Google), 503; si no, 401.
+      const esRed = /network|fetch failed|ENOTFOUND|EAI_AGAIN|getaddrinfo|timeout|certificate|self-signed/i.test(detalle);
+      return res.status(esRed ? 503 : 401).json({
+        success: false,
+        message: esRed
+          ? 'No se pudo contactar con Google para verificar el token. Intenta mas tarde.'
+          : 'El token de Google no es valido o ha expirado.',
+      });
+    }
+
+    const { sub: googleId, email, email_verified, given_name, family_name, name } = payload;
 
     if (!email) {
       return res.status(400).json({
         success: false,
         message: 'No se pudo obtener el correo electronico de la cuenta de Google.',
+      });
+    }
+
+    if (email_verified === false) {
+      return res.status(401).json({
+        success: false,
+        message: 'El correo de la cuenta de Google no esta verificado.',
       });
     }
 
@@ -585,7 +624,7 @@ async function autenticarConGoogle(req, res) {
         apellido: usuario.apellido,
       },
       JWT_SECRET,
-      { expiresIn: '24h' },
+      { expiresIn: JWT_EXPIRES_IN },
     );
 
     return res.json({

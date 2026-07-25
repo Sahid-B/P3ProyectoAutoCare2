@@ -29,18 +29,34 @@ services:
     restart: unless-stopped
     environment:
       PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      NODE_TLS_REJECT_UNAUTHORIZED: ${NODE_TLS_REJECT_UNAUTHORIZED:-0}
       DB_HOST: database
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-autocare}
       DB_USER: ${DB_USER:-autocare_user}
       DB_PASSWORD: ${DB_PASSWORD:-change_this_password}
       FRONTEND_URL: http://localhost:5173
+      # Secretos y configuracion: se reciben del entorno (.env de la raiz),
+      # nunca escritos como credenciales reales aqui.
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     ports:
       - '3000:3000'
     # Recarga automatica durante el desarrollo
     command: node --watch src/server.js
     volumes:
       - ./backend:/app
+      # Las migraciones (fuera del contexto del backend) se montan de solo lectura
+      # para que el runner de migraciones pueda aplicarlas al arrancar.
+      - ./database/migrations:/app/database/migrations:ro
       - /app/node_modules
     depends_on:
       database:
@@ -51,10 +67,14 @@ services:
       context: ./frontend
       args:
         NPM_STRICT_SSL: ${NPM_STRICT_SSL:-true}
+        # Las variables VITE_* se incorporan durante el build; se pasan como build arg.
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     container_name: autocare-frontend
     restart: unless-stopped
     environment:
       VITE_API_URL: http://localhost:3000/api
+      # En el servidor de desarrollo de Vite, la variable tambien se toma del entorno.
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     ports:
       - '5173:5173'
     # Recarga automatica durante el desarrollo

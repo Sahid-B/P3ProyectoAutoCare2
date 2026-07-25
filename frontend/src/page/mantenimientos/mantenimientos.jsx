@@ -40,55 +40,8 @@ function Mantenimientos() {
 
   const toast = useToast();
 
-  const cargarDatos = async () => {
-    try {
-      setCargando(true);
-      setError('');
-
-      // Intentar cargar de la API
-      const [resMaintenances, resVehicles, resStats] = await Promise.all([
-        getMaintenances(),
-        getVehicles(),
-        getMaintenanceStats().catch(() => null),
-      ]);
-
-      const listaMantenimientos = resMaintenances.data || [];
-      const listaVehiculos = resVehicles.data || [];
-
-      setMantenimientos(listaMantenimientos);
-      setVehiculos(listaVehiculos);
-      setModoOffline(false);
-
-      if (resStats?.data) {
-        setStats({
-          gasto_total: Number(resStats.data.gasto_total || 0),
-          gasto_mes: Number(resStats.data.gasto_mes || 0),
-        });
-      } else {
-        calcularEstadisticasLocales(listaMantenimientos);
-      }
-
-      // Guardar en IndexedDB para lectura offline
-      await saveMaintenances(listaMantenimientos);
-
-      // Comprobar alertas para notificaciones push
-      verificarAlertasYNotificar(listaMantenimientos, listaVehiculos);
-    } catch (err) {
-      console.warn('[mantenimientos] Error al consultar API, intentando IndexedDB:', err.message);
-      setModoOffline(true);
-
-      const [localMaintenances, localVehicles] = await Promise.all([
-        getLocalMaintenances(),
-        getLocalVehicles(),
-      ]);
-
-      setMantenimientos(localMaintenances || []);
-      setVehiculos(localVehicles || []);
-      calcularEstadisticasLocales(localMaintenances || []);
-    } finally {
-      setCargando(false);
-    }
-  };
+  // cargarDatos se define dentro del useEffect (mas abajo) para no invocar
+  // setState de forma sincrona desde el cuerpo del efecto.
 
   const calcularEstadisticasLocales = (lista) => {
     const total = lista.reduce((acc, curr) => acc + Number(curr.cost || 0), 0);
@@ -116,6 +69,52 @@ function Mantenimientos() {
   };
 
   useEffect(() => {
+    async function cargarDatos() {
+      try {
+        // El estado inicial ya es cargando=true; esta funcion solo se ejecuta al montar.
+        const [resMaintenances, resVehicles, resStats] = await Promise.all([
+          getMaintenances(),
+          getVehicles(),
+          getMaintenanceStats().catch(() => null),
+        ]);
+
+        const listaMantenimientos = resMaintenances.data || [];
+        const listaVehiculos = resVehicles.data || [];
+
+        setMantenimientos(listaMantenimientos);
+        setVehiculos(listaVehiculos);
+        setModoOffline(false);
+
+        if (resStats?.data) {
+          setStats({
+            gasto_total: Number(resStats.data.gasto_total || 0),
+            gasto_mes: Number(resStats.data.gasto_mes || 0),
+          });
+        } else {
+          calcularEstadisticasLocales(listaMantenimientos);
+        }
+
+        // Guardar en IndexedDB para lectura offline
+        await saveMaintenances(listaMantenimientos);
+
+        // Comprobar alertas para notificaciones push
+        verificarAlertasYNotificar(listaMantenimientos, listaVehiculos);
+      } catch (err) {
+        console.warn('[mantenimientos] Error al consultar API, intentando IndexedDB:', err.message);
+        const [localMaintenances, localVehicles] = await Promise.all([
+          getLocalMaintenances(),
+          getLocalVehicles(),
+        ]);
+
+        setModoOffline(true);
+        setMantenimientos(localMaintenances || []);
+        setVehiculos(localVehicles || []);
+        calcularEstadisticasLocales(localMaintenances || []);
+      } finally {
+        setCargando(false);
+      }
+    }
+
     cargarDatos();
   }, []);
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Heading,
@@ -73,13 +73,16 @@ function Perfil() {
   // Modal 2FA
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
 
-  useEffect(() => {
-    if (usuario) {
-      setNombre(usuario.nombre || '');
-      setApellido(usuario.apellido || '');
-      setIs2faEnabled(Boolean(usuario.is_2fa_enabled));
-    }
-  }, [usuario]);
+  // Sincroniza los campos locales cuando cambia el usuario del contexto.
+  // Patron oficial de React de "ajustar estado durante el render" (evita
+  // llamar setState dentro de un useEffect).
+  const [usuarioSincronizado, setUsuarioSincronizado] = useState(usuario);
+  if (usuario && usuario !== usuarioSincronizado) {
+    setUsuarioSincronizado(usuario);
+    setNombre(usuario.nombre || '');
+    setApellido(usuario.apellido || '');
+    setIs2faEnabled(Boolean(usuario.is_2fa_enabled));
+  }
 
   // Manejar guardado de datos del perfil
   const handleGuardarPerfil = async (e) => {

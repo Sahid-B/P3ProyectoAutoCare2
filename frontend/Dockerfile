@@ -10,6 +10,11 @@ WORKDIR /app
 # intercepta las conexiones HTTPS (ver README).
 ARG NPM_STRICT_SSL=true
 
+# Client ID publico de Google. Las variables VITE_* se incorporan al bundle
+# durante el build; se expone como variable de entorno para "vite build".
+ARG VITE_GOOGLE_CLIENT_ID=
+ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+
 COPY package*.json ./
 RUN npm ci --strict-ssl=${NPM_STRICT_SSL}
 

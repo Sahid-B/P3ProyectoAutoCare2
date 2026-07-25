@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'autocare_secret_key_2026';
+const { JWT_SECRET } = require('../config/auth-config');
 
 /**
  * Middleware para verificar el token JWT en solicitudes protegidas.

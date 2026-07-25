@@ -39,7 +39,7 @@ function Footer() {
                 AutoCare
               </Text>
             </HStack>
-            <Text fontSize="sm" color="secondary.400" leadingTight>
+            <Text fontSize="sm" color="secondary.400" lineHeight="short">
               La plataforma integral para gestionar mantenimientos, alertas y el historial completo de tus vehículos en vivo y offline.
             </Text>
             <HStack spacing={2} pt={1}>

@@ -87,6 +87,59 @@ function Dashboard() {
         if (activo) setEstadoApi({ cargando: false, datos: null, error: error.message });
       });
 
+    // Procesa las metricas del dashboard. Definida dentro del efecto y antes de
+    // su uso para respetar el orden de declaracion.
+    function procesarMetricas(vehiculos, mantenimientos, statsServidor) {
+      let proximos = 0;
+      let vencidos = 0;
+      let urgentes = 0;
+
+      const mantenimientosEvaluados = mantenimientos.map((m) => {
+        const v = vehiculos.find((veh) => String(veh.id) === String(m.vehicle_id));
+        const evaluacion = calcularEstadoMantenimiento(m, v?.kilometraje_actual);
+        return { ...m, ...evaluacion };
+      });
+
+      mantenimientosEvaluados.forEach((m) => {
+        if (m.estado === 'vencido') vencidos++;
+        else if (m.estado === 'urgente') urgentes++;
+        else if (m.estado === 'proximo') proximos++;
+      });
+
+      const alertas = mantenimientosEvaluados.filter(
+        (item) => item.estado === 'urgente' || item.estado === 'vencido',
+      );
+
+      let gastoTotal = Number(statsServidor?.gasto_total || 0);
+      let gastoMes = Number(statsServidor?.gasto_mes || 0);
+
+      if (!statsServidor) {
+        gastoTotal = mantenimientos.reduce((acc, curr) => acc + Number(curr.cost || 0), 0);
+        const primerDiaMes = new Date();
+        primerDiaMes.setDate(1);
+        primerDiaMes.setHours(0, 0, 0, 0);
+
+        gastoMes = mantenimientos
+          .filter((m) => new Date(m.date) >= primerDiaMes)
+          .reduce((acc, curr) => acc + Number(curr.cost || 0), 0);
+      }
+
+      setResumen({
+        totalVehiculos: vehiculos.length,
+        proximosMantenimientos: proximos,
+        mantenimientosVencidos: vencidos,
+        alertasActivas: alertas.length,
+        gastoTotal,
+        gastoMes,
+      });
+
+      setUltimosMantenimientos(mantenimientosEvaluados.slice(0, 5));
+      setAlertasUrgentesVencidas(alertas);
+
+      // Enviar notificaciones push si existen alertas activas
+      comprobarYNotificarMantenimientos(alertas);
+    }
+
     // 2. Cargar datos de vehiculos y mantenimientos reales
     async function cargarDashboard() {
       try {
@@ -125,57 +178,6 @@ function Dashboard() {
       activo = false;
     };
   }, []);
-
-  const procesarMetricas = (vehiculos, mantenimientos, statsServidor) => {
-    let proximos = 0;
-    let vencidos = 0;
-    let urgentes = 0;
-
-    const mantenimientosEvaluados = mantenimientos.map((m) => {
-      const v = vehiculos.find((veh) => String(veh.id) === String(m.vehicle_id));
-      const evaluacion = calcularEstadoMantenimiento(m, v?.kilometraje_actual);
-      return { ...m, ...evaluacion };
-    });
-
-    mantenimientosEvaluados.forEach((m) => {
-      if (m.estado === 'vencido') vencidos++;
-      else if (m.estado === 'urgente') urgentes++;
-      else if (m.estado === 'proximo') proximos++;
-    });
-
-    const alertas = mantenimientosEvaluados.filter(
-      (item) => item.estado === 'urgente' || item.estado === 'vencido',
-    );
-
-    let gastoTotal = Number(statsServidor?.gasto_total || 0);
-    let gastoMes = Number(statsServidor?.gasto_mes || 0);
-
-    if (!statsServidor) {
-      gastoTotal = mantenimientos.reduce((acc, curr) => acc + Number(curr.cost || 0), 0);
-      const primerDiaMes = new Date();
-      primerDiaMes.setDate(1);
-      primerDiaMes.setHours(0, 0, 0, 0);
-
-      gastoMes = mantenimientos
-        .filter((m) => new Date(m.date) >= primerDiaMes)
-        .reduce((acc, curr) => acc + Number(curr.cost || 0), 0);
-    }
-
-    setResumen({
-      totalVehiculos: vehiculos.length,
-      proximosMantenimientos: proximos,
-      mantenimientosVencidos: vencidos,
-      alertasActivas: alertas.length,
-      gastoTotal,
-      gastoMes,
-    });
-
-    setUltimosMantenimientos(mantenimientosEvaluados.slice(0, 5));
-    setAlertasUrgentesVencidas(alertas);
-
-    // Enviar notificaciones push si existen alertas activas
-    comprobarYNotificarMantenimientos(alertas);
-  };
 
   const handlePedirPermisosPush = async () => {
     const res = await solicitarPermisoNotificaciones();

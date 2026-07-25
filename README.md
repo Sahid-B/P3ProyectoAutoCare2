@@ -118,34 +118,57 @@ en el tema (`src/theme/theme.js`) y con las props de Chakra.
 ## Variables de entorno
 
 No se suben archivos `.env` reales al repositorio; estan incluidos en `.gitignore`.
-Cada carpeta trae su archivo de ejemplo.
+Cada carpeta trae su archivo de ejemplo con **valores ficticios**. Nunca se escriben
+credenciales reales en el codigo ni en `docker-compose.yml`.
 
-**`frontend/.env.example`**
+**Backend** (`backend/.env.example`)
+
+| Variable | Descripcion |
+| -------- | ----------- |
+| `PORT` | Puerto del backend (3000) |
+| `NODE_ENV` | `development` o `production` |
+| `DB_HOST` `DB_PORT` `DB_NAME` `DB_USER` `DB_PASSWORD` | Conexion a PostgreSQL (`DB_HOST=database` en Docker, `localhost` en local) |
+| `FRONTEND_URL` | Origen permitido por CORS |
+| `JWT_SECRET` | Secreto de firma/verificacion de JWT. En produccion es obligatorio (el backend se detiene si falta) |
+| `JWT_EXPIRES_IN` | Vigencia del token (por defecto `24h`) |
+| `GOOGLE_CLIENT_ID` | Client ID publico de Google (para verificar el ID token) |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_SECURE` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | SMTP para el segundo factor por correo (opcional) |
+
+**Frontend** (`frontend/.env.example`)
+
+| Variable | Descripcion |
+| -------- | ----------- |
+| `VITE_API_URL` | URL base del backend |
+| `VITE_GOOGLE_CLIENT_ID` | Client ID publico de Google para el boton "Continuar con Google" |
+
+> Las variables `VITE_*` se incorporan **durante el build** del frontend. Deben estar
+> definidas antes de ejecutar `vite build` (o el servidor de desarrollo). En Docker se
+> pasan como *build arg* y como variable de entorno del servicio `frontend`.
+
+**Raiz** (`.env.example`, usado por `docker-compose`): reune `DB_*`, `JWT_SECRET`,
+`JWT_EXPIRES_IN`, `GOOGLE_CLIENT_ID`, `VITE_GOOGLE_CLIENT_ID`, `SMTP_*` y `NPM_STRICT_SSL`.
+Docker Compose los inyecta a los servicios por sustitucion de entorno.
+
+### Migraciones de base de datos
+
+El backend aplica automaticamente las migraciones pendientes al arrancar
+(`backend/src/config/run-migrations.js`). Registra en la tabla `schema_migrations`
+las ya aplicadas y ejecuta solo las nuevas (dentro de una transaccion). Son
+idempotentes: reiniciar el backend no vuelve a aplicarlas ni produce errores.
+No es necesario borrar el volumen ni ejecutar `docker compose down -v`.
+
+### Google OAuth (configuracion en Google Cloud)
+
+El flujo usa Google Identity Services (el frontend obtiene un ID token que el backend
+verifica). En Google Cloud, en el cliente OAuth *Web application*, configura:
 
 ```
-VITE_API_URL=http://localhost:3000/api
+Authorized JavaScript origin:  http://localhost:5173
 ```
 
-**`backend/.env.example`**
-
-```
-PORT=3000
-DB_HOST=database        # usar localhost si se ejecuta sin Docker
-DB_PORT=5432
-DB_NAME=autocare
-DB_USER=autocare_user
-DB_PASSWORD=change_this_password
-FRONTEND_URL=http://localhost:5173
-```
-
-**`.env.example` (raiz, usado por docker-compose)**
-
-```
-DB_NAME=autocare
-DB_USER=autocare_user
-DB_PASSWORD=change_this_password
-NPM_STRICT_SSL=true
-```
+No se usa una redirect URI de servidor. El **Client Secret no se utiliza** en este flujo
+y nunca debe colocarse en el frontend. Coloca el Client ID en `GOOGLE_CLIENT_ID`
+(backend) y `VITE_GOOGLE_CLIENT_ID` (frontend).
 
 ## Ejecucion con Docker (recomendada)
 

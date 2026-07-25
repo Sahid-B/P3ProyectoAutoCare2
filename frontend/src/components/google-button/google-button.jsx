@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Button, Icon, Text, Flex, Spinner } from '@chakra-ui/react';
+import { Box, Button, Text } from '@chakra-ui/react';
 import { FcGoogle } from 'react-icons/fc';
 
-const GOOGLE_CLIENT_ID = '1005936377796-4h6ivu6448a99u69bkup7vmkq695dojc.apps.googleusercontent.com';
+// El Client ID es publico (no secreto) y se lee de las variables de entorno.
+// El Client Secret NUNCA debe estar en el frontend.
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function GoogleButton({ alExito, cargando = false, texto = 'Continuar con Google' }) {
   const contenedorRef = useRef(null);
-  const [scriptCargado, setScriptCargado] = useState(false);
+  // Estado inicial perezoso: evita llamar setState de forma sincrona dentro del efecto.
+  const [scriptCargado, setScriptCargado] = useState(() => Boolean(window.google?.accounts?.id));
 
   useEffect(() => {
-    // Si la API de Google ya existe en window
-    if (window.google?.accounts?.id) {
-      setScriptCargado(true);
-      return;
-    }
+    if (!GOOGLE_CLIENT_ID) return; // sin client id no se inicializa GIS
+    if (window.google?.accounts?.id) return; // ya disponible (estado inicial ya es true)
 
-    // Cargar script de Google Identity Services
+    // Cargar el script de Google Identity Services
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -25,7 +25,7 @@ function GoogleButton({ alExito, cargando = false, texto = 'Continuar con Google
   }, []);
 
   useEffect(() => {
-    if (scriptCargado && window.google?.accounts?.id && contenedorRef.current) {
+    if (scriptCargado && GOOGLE_CLIENT_ID && window.google?.accounts?.id && contenedorRef.current) {
       try {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
@@ -36,7 +36,6 @@ function GoogleButton({ alExito, cargando = false, texto = 'Continuar con Google
           },
         });
 
-        // Renderizar boton oficial de Google
         contenedorRef.current.innerHTML = '';
         window.google.accounts.id.renderButton(contenedorRef.current, {
           theme: 'outline',
@@ -50,6 +49,27 @@ function GoogleButton({ alExito, cargando = false, texto = 'Continuar con Google
       }
     }
   }, [scriptCargado, alExito]);
+
+  // Sin client id configurado: se muestra un boton informativo deshabilitado.
+  if (!GOOGLE_CLIENT_ID) {
+    return (
+      <Box w="100%" my={3}>
+        <Button
+          w="100%"
+          variant="outline"
+          borderColor="secondary.300"
+          bg="white"
+          leftIcon={<FcGoogle size={20} />}
+          isDisabled
+        >
+          {texto}
+        </Button>
+        <Text fontSize="xs" color="secondary.500" mt={1} textAlign="center">
+          Configura VITE_GOOGLE_CLIENT_ID para habilitar el acceso con Google.
+        </Text>
+      </Box>
+    );
+  }
 
   return (
     <Box w="100%" my={3}>

@@ -70,7 +70,7 @@ export function calcularEstadoMantenimiento(mantenimiento, kilometrajeVehiculo) 
   const esFechaVencida = diasRestantes !== null && diasRestantes < 0;
 
   if (esKmVencido || esFechaVencida) {
-    let detalle = 'Vencido';
+    let detalle;
     if (esKmVencido && esFechaVencida) {
       detalle = `Vencido hace ${Math.abs(diasRestantes)} dias y sobrepasado por ${Math.abs(kmRestantes)} km`;
     } else if (esKmVencido) {
@@ -95,7 +95,7 @@ export function calcularEstadoMantenimiento(mantenimiento, kilometrajeVehiculo) 
   const esFechaUrgente = diasRestantes !== null && diasRestantes <= 7;
 
   if (esKmUrgente || esFechaUrgente) {
-    let detalle = 'Urgente';
+    let detalle;
     if (kmRestantes !== null && diasRestantes !== null) {
       detalle = `Faltan ${kmRestantes} km o ${diasRestantes} dias`;
     } else if (kmRestantes !== null) {
@@ -120,7 +120,7 @@ export function calcularEstadoMantenimiento(mantenimiento, kilometrajeVehiculo) 
   const esFechaProxima = diasRestantes !== null && diasRestantes <= 30;
 
   if (esKmProximo || esFechaProxima) {
-    let detalle = 'Proximo';
+    let detalle;
     if (kmRestantes !== null && diasRestantes !== null) {
       detalle = `En ${kmRestantes} km o ${diasRestantes} dias`;
     } else if (kmRestantes !== null) {

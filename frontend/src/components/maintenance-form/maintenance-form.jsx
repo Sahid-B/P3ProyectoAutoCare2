@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box,
   VStack,
@@ -46,23 +46,31 @@ function MaintenanceForm({
 
   const [errores, setErrores] = useState({});
 
-  useEffect(() => {
+  // Selecciona por defecto el primer vehiculo cuando la lista llega. Patron
+  // oficial de React de "ajustar estado durante el render" (evita setState
+  // dentro de un useEffect).
+  const [vehiculosVistos, setVehiculosVistos] = useState(vehiculos);
+  if (vehiculos !== vehiculosVistos) {
+    setVehiculosVistos(vehiculos);
     if (vehiculos.length > 0 && !form.vehicle_id) {
       setForm((prev) => ({ ...prev, vehicle_id: String(vehiculos[0].id) }));
     }
-  }, [vehiculos]);
+  }
 
-  // Si cambia el vehiculo seleccionado, rellenar sugerencias de kilometraje si el form no tiene
   const vehiculoSeleccionado = vehiculos.find((v) => String(v.id) === String(form.vehicle_id));
 
-  useEffect(() => {
+  // Al cambiar el vehiculo seleccionado, sugiere su kilometraje actual si el
+  // campo esta vacio (tambien ajustado en render, no en un efecto).
+  const [vehicleIdPrevio, setVehicleIdPrevio] = useState(form.vehicle_id);
+  if (form.vehicle_id !== vehicleIdPrevio) {
+    setVehicleIdPrevio(form.vehicle_id);
     if (vehiculoSeleccionado && (!form.kilometers || form.kilometers === '0')) {
       setForm((prev) => ({
         ...prev,
         kilometers: String(vehiculoSeleccionado.kilometraje_actual || 0),
       }));
     }
-  }, [form.vehicle_id]);
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;
