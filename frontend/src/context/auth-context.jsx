@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import {
   iniciarSesion as apiIniciarSesion,
+  verificarLogin2FA as apiVerificarLogin2FA,
   registrarUsuario as apiRegistrarUsuario,
   obtenerPerfil as apiObtenerPerfil,
   cerrarSesion as apiCerrarSesion,
+  autenticarConGoogle as apiAutenticarConGoogle,
 } from '../services/api-service.js';
 
 const TOKEN_KEY = 'autocare_token';
@@ -13,7 +15,10 @@ const AuthContext = createContext({
   token: null,
   cargando: true,
   login: async () => {},
+  completarLogin2FA: async () => {},
   registro: async () => {},
+  loginGoogle: async () => {},
+  actualizarUsuarioLocal: () => {},
   logout: async () => {},
 });
 
@@ -74,6 +79,16 @@ export function AuthProvider({ children }) {
     return respuesta;
   };
 
+  const completarLogin2FA = async (userId, token2FA) => {
+    const respuesta = await apiVerificarLogin2FA({ userId, token2FA });
+    if (respuesta?.token && respuesta?.usuario) {
+      localStorage.setItem(TOKEN_KEY, respuesta.token);
+      setToken(respuesta.token);
+      setUsuario(respuesta.usuario);
+    }
+    return respuesta;
+  };
+
   const registro = async (datosRegistro) => {
     const respuesta = await apiRegistrarUsuario(datosRegistro);
     if (respuesta?.token && respuesta?.usuario) {
@@ -82,6 +97,20 @@ export function AuthProvider({ children }) {
       setUsuario(respuesta.usuario);
     }
     return respuesta;
+  };
+
+  const loginGoogle = async (credential) => {
+    const respuesta = await apiAutenticarConGoogle({ credential });
+    if (respuesta?.token && respuesta?.usuario) {
+      localStorage.setItem(TOKEN_KEY, respuesta.token);
+      setToken(respuesta.token);
+      setUsuario(respuesta.usuario);
+    }
+    return respuesta;
+  };
+
+  const actualizarUsuarioLocal = (nuevosDatos) => {
+    setUsuario((anterior) => ({ ...anterior, ...nuevosDatos }));
   };
 
   const logout = async () => {
@@ -103,7 +132,10 @@ export function AuthProvider({ children }) {
         token,
         cargando,
         login,
+        completarLogin2FA,
         registro,
+        loginGoogle,
+        actualizarUsuarioLocal,
         logout,
       }}
     >

@@ -16,16 +16,23 @@ WHERE NOT EXISTS (
     SELECT 1 FROM app_status WHERE project_name = 'AutoCare'
 );
 
--- Tabla de usuarios (Parte 2)
+-- Tabla de usuarios (Parte 2, Parte 4 Google OAuth y 2FA/TOTP/SMTP)
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
     apellido VARCHAR(100) NOT NULL,
     correo VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
+    google_id VARCHAR(255) UNIQUE,
+    is_2fa_enabled BOOLEAN DEFAULT FALSE,
+    totp_secret VARCHAR(255),
+    otp_code VARCHAR(10),
+    otp_expires_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+
 
 -- Tabla de vehiculos (Parte 3)
 -- Cada vehiculo pertenece a un usuario. La placa es unica por usuario.
@@ -51,4 +58,26 @@ CREATE TABLE IF NOT EXISTS vehiculos (
 
 -- Indice para acelerar el listado de vehiculos por usuario
 CREATE INDEX IF NOT EXISTS idx_vehiculos_usuario ON vehiculos(usuario_id);
+
+-- Tabla de mantenimientos (Parte 4)
+CREATE TABLE IF NOT EXISTS maintenances (
+    id SERIAL PRIMARY KEY,
+    vehicle_id INTEGER NOT NULL REFERENCES vehiculos(id) ON DELETE CASCADE,
+    maintenance_type VARCHAR(100) NOT NULL,
+    date DATE NOT NULL,
+    kilometers INTEGER NOT NULL,
+    cost NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    workshop VARCHAR(150),
+    description TEXT,
+    next_date DATE,
+    next_kilometers INTEGER,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_maintenances_kilometers CHECK (kilometers >= 0),
+    CONSTRAINT chk_maintenances_cost CHECK (cost >= 0.00)
+);
+
+CREATE INDEX IF NOT EXISTS idx_maintenances_vehicle ON maintenances(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_maintenances_date ON maintenances(date);
+
 

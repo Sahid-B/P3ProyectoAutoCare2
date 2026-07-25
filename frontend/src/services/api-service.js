@@ -57,10 +57,58 @@ export function iniciarSesion(datos) {
 }
 
 /**
+ * Verificacion de codigo 2FA (TOTP o OTP) durante el login.
+ */
+export function verificarLogin2FA(datos2FA) {
+  return peticion('/auth/2fa/verify-login', {
+    method: 'POST',
+    body: JSON.stringify(datos2FA),
+  });
+}
+
+/**
  * Obtener perfil del usuario autenticado.
  */
 export function obtenerPerfil() {
   return peticion('/auth/me');
+}
+
+/**
+ * Actualizar datos del perfil (nombre, apellido, contrasena).
+ */
+export function actualizarPerfil(datos) {
+  return peticion('/auth/profile', {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  });
+}
+
+/**
+ * Generar secreto y QR Code para Google Authenticator / TOTP.
+ */
+export function configurarTOTP() {
+  return peticion('/auth/2fa/totp/setup', {
+    method: 'POST',
+  });
+}
+
+/**
+ * Activar o desactivar 2FA.
+ */
+export function alternar2FA(datos) {
+  return peticion('/auth/2fa/toggle', {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  });
+}
+
+/**
+ * Enviar codigo OTP de prueba por correo SMTP.
+ */
+export function enviarOtpPrueba() {
+  return peticion('/auth/2fa/send-email-otp', {
+    method: 'POST',
+  });
 }
 
 /**
@@ -72,13 +120,28 @@ export function cerrarSesion() {
   });
 }
 
+/**
+ * Inicio de sesion / Registro con Google OAuth 2.0.
+ */
+export function autenticarConGoogle(datosGoogle) {
+  return peticion('/auth/google', {
+    method: 'POST',
+    body: JSON.stringify(datosGoogle),
+  });
+}
+
 export default {
   peticion,
   obtenerEstadoApi,
   registrarUsuario,
   iniciarSesion,
+  verificarLogin2FA,
   obtenerPerfil,
+  actualizarPerfil,
+  configurarTOTP,
+  alternar2FA,
+  enviarOtpPrueba,
   cerrarSesion,
+  autenticarConGoogle,
   URL_API,
 };
-

@@ -25,42 +25,60 @@ import {
   Code,
   Spinner,
   Icon,
+  Button,
 } from '@chakra-ui/react';
 import {
   FaCar,
   FaClock,
   FaTriangleExclamation,
   FaDollarSign,
+  FaCalendarDays,
+  FaCircleCheck,
+  FaWrench,
+  FaArrowRight,
 } from 'react-icons/fa6';
+
+import { Link as RouterLink } from 'react-router-dom';
 import Layout from '../../components/layout/index.jsx';
+import NotificationCard from '../../components/notification-card/index.jsx';
 import { obtenerEstadoApi } from '../../services/api-service.js';
 import { getVehicles } from '../../services/vehicle-service.js';
+import { getMaintenances, getMaintenanceStats } from '../../services/maintenance-service.js';
+import {
+  getVehicles as getLocalVehicles,
+  getMaintenances as getLocalMaintenances,
+} from '../../services/indexeddb-service.js';
+import { calcularEstadoMantenimiento } from '../../utils/rule-engine.js';
+import { solicitarPermisoNotificaciones, comprobarYNotificarMantenimientos } from '../../services/notification-service.js';
+import { useAuth } from '../../context/auth-context.jsx';
 
-// Indicadores todavia simulados (se completaran en las siguientes partes).
-// El indicador "Total de vehiculos" SI usa datos reales (ver mas abajo).
-const indicadoresTemporales = [
-  { titulo: 'Proximo mantenimiento', valor: '12 dias', detalle: 'Cambio de aceite - Aveo 2015', icono: FaClock },
-  { titulo: 'Alertas activas', valor: '2', detalle: 'Matricula y revision de frenos', icono: FaTriangleExclamation },
-  { titulo: 'Gastos del mes', valor: '$ 145,00', detalle: 'Suma de servicios registrados', icono: FaDollarSign },
-];
 
-
-const actividadReciente = [
-  { fecha: '18/07', descripcion: 'Cambio de aceite y filtro', vehiculo: 'Chevrolet Aveo 2015', costo: '$ 55,00' },
-  { fecha: '05/07', descripcion: 'Revision de frenos', vehiculo: 'Kia Rio 2019', costo: '$ 40,00' },
-  { fecha: '28/06', descripcion: 'Cambio de llantas delanteras', vehiculo: 'Chevrolet Aveo 2015', costo: '$ 50,00' },
-  { fecha: '15/06', descripcion: 'Renovacion de matricula', vehiculo: 'Kia Rio 2019', costo: '$ 90,00' },
-];
-
-// Panel principal del area privada.
 function Dashboard() {
   const [estadoApi, setEstadoApi] = useState({ cargando: true, datos: null, error: '' });
-  // Total de vehiculos: dato REAL del usuario autenticado.
-  const [totalVehiculos, setTotalVehiculos] = useState({ cargando: true, valor: 0 });
+  const [cargandoDatos, setCargandoDatos] = useState(true);
+  const [modoOffline, setModoOffline] = useState(false);
+  const [permisoPush, setPermisoPush] = useState(Notification.permission || 'default');
+
+  const [resumen, setResumen] = useState({
+    totalVehiculos: 0,
+    proximosMantenimientos: 0,
+    mantenimientosVencidos: 0,
+    alertasActivas: 0,
+    gastoTotal: 0,
+    gastoMes: 0,
+  });
+
+  const [ultimosMantenimientos, setUltimosMantenimientos] = useState([]);
+  const [alertasUrgentesVencidas, setAlertasUrgentesVencidas] = useState([]);
+
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(val || 0);
+  };
 
   useEffect(() => {
     let activo = true;
 
+    // 1. Estado de la API
     obtenerEstadoApi()
       .then((datos) => {
         if (activo) setEstadoApi({ cargando: false, datos, error: '' });
@@ -69,85 +87,232 @@ function Dashboard() {
         if (activo) setEstadoApi({ cargando: false, datos: null, error: error.message });
       });
 
-    getVehicles()
-      .then((respuesta) => {
-        if (activo) setTotalVehiculos({ cargando: false, valor: (respuesta.data || []).length });
-      })
-      .catch(() => {
-        if (activo) setTotalVehiculos({ cargando: false, valor: 0 });
-      });
+    // 2. Cargar datos de vehiculos y mantenimientos reales
+    async function cargarDashboard() {
+      try {
+        const [resVehicles, resMaintenances, resStats] = await Promise.all([
+          getVehicles(),
+          getMaintenances(),
+          getMaintenanceStats().catch(() => null),
+        ]);
+
+        const listaVehiculos = resVehicles.data || [];
+        const listaMantenimientos = resMaintenances.data || [];
+
+        if (!activo) return;
+
+        procesarMetricas(listaVehiculos, listaMantenimientos, resStats?.data);
+        setModoOffline(false);
+      } catch (err) {
+        console.warn('[dashboard] Error consultando backend, usando datos de IndexedDB:', err.message);
+        const [localVehicles, localMaintenances] = await Promise.all([
+          getLocalVehicles(),
+          getLocalMaintenances(),
+        ]);
+
+        if (!activo) return;
+
+        procesarMetricas(localVehicles || [], localMaintenances || [], null);
+        setModoOffline(true);
+      } finally {
+        if (activo) setCargandoDatos(false);
+      }
+    }
+
+    cargarDashboard();
 
     return () => {
       activo = false;
     };
   }, []);
 
-  // El primer indicador usa el conteo real; los demas siguen siendo temporales.
-  const indicadores = [
+  const procesarMetricas = (vehiculos, mantenimientos, statsServidor) => {
+    let proximos = 0;
+    let vencidos = 0;
+    let urgentes = 0;
+
+    const mantenimientosEvaluados = mantenimientos.map((m) => {
+      const v = vehiculos.find((veh) => String(veh.id) === String(m.vehicle_id));
+      const evaluacion = calcularEstadoMantenimiento(m, v?.kilometraje_actual);
+      return { ...m, ...evaluacion };
+    });
+
+    mantenimientosEvaluados.forEach((m) => {
+      if (m.estado === 'vencido') vencidos++;
+      else if (m.estado === 'urgente') urgentes++;
+      else if (m.estado === 'proximo') proximos++;
+    });
+
+    const alertas = mantenimientosEvaluados.filter(
+      (item) => item.estado === 'urgente' || item.estado === 'vencido',
+    );
+
+    let gastoTotal = Number(statsServidor?.gasto_total || 0);
+    let gastoMes = Number(statsServidor?.gasto_mes || 0);
+
+    if (!statsServidor) {
+      gastoTotal = mantenimientos.reduce((acc, curr) => acc + Number(curr.cost || 0), 0);
+      const primerDiaMes = new Date();
+      primerDiaMes.setDate(1);
+      primerDiaMes.setHours(0, 0, 0, 0);
+
+      gastoMes = mantenimientos
+        .filter((m) => new Date(m.date) >= primerDiaMes)
+        .reduce((acc, curr) => acc + Number(curr.cost || 0), 0);
+    }
+
+    setResumen({
+      totalVehiculos: vehiculos.length,
+      proximosMantenimientos: proximos,
+      mantenimientosVencidos: vencidos,
+      alertasActivas: alertas.length,
+      gastoTotal,
+      gastoMes,
+    });
+
+    setUltimosMantenimientos(mantenimientosEvaluados.slice(0, 5));
+    setAlertasUrgentesVencidas(alertas);
+
+    // Enviar notificaciones push si existen alertas activas
+    comprobarYNotificarMantenimientos(alertas);
+  };
+
+  const handlePedirPermisosPush = async () => {
+    const res = await solicitarPermisoNotificaciones();
+    setPermisoPush(res);
+  };
+
+  const tarjetasIndicadores = [
     {
-      titulo: 'Total de vehiculos',
-      valor: totalVehiculos.cargando ? '...' : String(totalVehiculos.valor),
-      detalle: 'Registrados en tu cuenta',
+      titulo: 'Vehiculos Registrados',
+      valor: String(resumen.totalVehiculos),
+      detalle: 'Total en tu cuenta',
       icono: FaCar,
-      real: true,
+      colorIcono: 'brand.600',
+      bgIcono: 'brand.50',
     },
-    ...indicadoresTemporales.map((indicador) => ({ ...indicador, real: false })),
+    {
+      titulo: 'Proximos Mantenimientos',
+      valor: String(resumen.proximosMantenimientos),
+      detalle: 'Programados en los siguientes 30 dias',
+      icono: FaClock,
+      colorIcono: 'blue.600',
+      bgIcono: 'blue.50',
+    },
+    {
+      titulo: 'Mantenimientos Vencidos',
+      valor: String(resumen.mantenimientosVencidos),
+      detalle: 'Servicios que requieren atencion inmediata',
+      icono: FaTriangleExclamation,
+      colorIcono: 'red.600',
+      bgIcono: 'red.50',
+    },
+    {
+      titulo: 'Alertas Activas',
+      valor: String(resumen.alertasActivas),
+      detalle: 'Alertas por fecha o kilometraje',
+      icono: FaWrench,
+      colorIcono: 'orange.600',
+      bgIcono: 'orange.50',
+    },
+    {
+      titulo: 'Gastos Totales',
+      valor: formatCurrency(resumen.gastoTotal),
+      detalle: 'Inversion acumulada',
+      icono: FaDollarSign,
+      colorIcono: 'green.600',
+      bgIcono: 'green.50',
+    },
+    {
+      titulo: 'Gastos del Mes',
+      valor: formatCurrency(resumen.gastoMes),
+      detalle: 'Servicios del mes actual',
+      icono: FaCalendarDays,
+      colorIcono: 'purple.600',
+      bgIcono: 'purple.50',
+
+    },
   ];
+
+  const { usuario } = useAuth();
 
   return (
     <Layout conSidebar>
       <Flex align="center" justify="space-between" gap={4} flexWrap="wrap" mb={3}>
         <Box>
-          <Heading as="h1" size="xl">
-            Dashboard
+          <Heading as="h1" size="xl" color="brand.800">
+            {usuario?.nombre ? `¡Hola, ${usuario.nombre}! 👋` : 'Dashboard'}
           </Heading>
           <Text fontSize="sm" color="secondary.600">
-            Resumen del estado de tus vehiculos.
+            Resumen en tiempo real del estado de tus vehiculos y mantenimientos.
           </Text>
         </Box>
-        <Badge colorScheme="warning" px={3} py={1} borderRadius="full" textTransform="uppercase">
-          Datos temporales
+
+        <Badge colorScheme="success" px={3} py={1} borderRadius="full" textTransform="uppercase">
+          Datos 100% Reales
         </Badge>
       </Flex>
 
-      <Alert status="info" borderRadius="md" mb={6} fontSize="sm">
-        <AlertIcon />
-        El total de vehiculos usa datos reales de tu cuenta. El resto de indicadores y la actividad
-        reciente son datos temporales que se completaran en las siguientes partes.
-      </Alert>
+      {modoOffline ? (
+        <Alert status="warning" borderRadius="md" mb={6} fontSize="sm">
+          <AlertIcon />
+          Modo Offline: Mostrando datos locales guardados en IndexedDB.
+        </Alert>
+      ) : (
+        <Alert status="success" variant="subtle" borderRadius="md" mb={6} fontSize="sm">
+          <AlertIcon />
+          Todos los datos de vehiculos, mantenimientos, costos y alertas provienen en vivo del backend.
+        </Alert>
+      )}
 
-      {/* Indicadores */}
-      <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} spacing={6} mb={8}>
-        {indicadores.map((indicador) => (
-          <Box
-            key={indicador.titulo}
-            p={6}
-            bg="white"
-            borderWidth="1px"
-            borderColor="secondary.200"
-            borderRadius="lg"
-            boxShadow="sm"
-          >
-            <Flex align="center" justify="space-between" mb={2}>
-              <Flex align="center" justify="center" boxSize="42px" bg="brand.50" borderRadius="md">
-                <Icon as={indicador.icono} boxSize={5} color="brand.600" />
+      {/* Indicadores Principales */}
+      {cargandoDatos ? (
+        <Flex align="center" justify="center" py={8}>
+          <HStack spacing={3} color="secondary.600">
+            <Spinner size="md" color="brand.500" />
+            <Text>Calculando indicadores...</Text>
+          </HStack>
+        </Flex>
+      ) : (
+        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={6} mb={8}>
+          {tarjetasIndicadores.map((indicador) => (
+            <Box
+              key={indicador.titulo}
+              p={5}
+              bg="white"
+              borderWidth="1px"
+              borderColor="secondary.200"
+              borderRadius="lg"
+              boxShadow="sm"
+            >
+              <Flex align="center" justify="space-between" mb={2}>
+                <Flex align="center" justify="center" boxSize="42px" bg={indicador.bgIcono} borderRadius="md">
+                  <Icon as={indicador.icono} boxSize={5} color={indicador.colorIcono} />
+                </Flex>
+                <Badge colorScheme="success" fontSize="0.65rem">
+                  Real
+                </Badge>
               </Flex>
-              <Badge colorScheme={indicador.real ? 'success' : 'warning'} fontSize="0.65rem">
-                {indicador.real ? 'Real' : 'Temporal'}
-              </Badge>
-            </Flex>
-            <Stat>
-              <StatLabel color="secondary.500">{indicador.titulo}</StatLabel>
-              <StatNumber color="brand.800">{indicador.valor}</StatNumber>
-              <StatHelpText color="secondary.500" mb={0}>
-                {indicador.detalle}
-              </StatHelpText>
-            </Stat>
-          </Box>
-        ))}
-      </SimpleGrid>
+              <Stat>
+                <StatLabel color="secondary.500">{indicador.titulo}</StatLabel>
+                <StatNumber color="brand.800">{indicador.valor}</StatNumber>
+                <StatHelpText color="secondary.500" mb={0}>
+                  {indicador.detalle}
+                </StatHelpText>
+              </Stat>
+            </Box>
+          ))}
+        </SimpleGrid>
+      )}
 
-      {/* Actividad reciente */}
+      {/* Notificaciones y Alertas Activas */}
+      <NotificationCard
+        alertas={alertasUrgentesVencidas}
+        alPedirPermisosPush={handlePedirPermisosPush}
+        permisoPush={permisoPush}
+      />
+
+      {/* Ultimos Mantenimientos Registrados */}
       <Box
         p={6}
         mb={8}
@@ -157,35 +322,76 @@ function Dashboard() {
         borderRadius="lg"
         boxShadow="sm"
       >
-        <Heading as="h2" size="md" mb={4}>
-          Actividad reciente
-        </Heading>
+        <Flex align="center" justify="space-between" mb={4}>
+          <Heading as="h2" size="md" color="brand.800">
+            Ultimos Mantenimientos Registrados
+          </Heading>
+          <Button
+            as={RouterLink}
+            to="/historial"
+            size="xs"
+            colorScheme="brand"
+            variant="ghost"
+            rightIcon={<FaArrowRight />}
+          >
+            Ver Historial Completo
+          </Button>
+        </Flex>
 
-        <TableContainer>
-          <Table variant="simple" size="sm">
-            <Thead>
-              <Tr>
-                <Th>Fecha</Th>
-                <Th>Mantenimiento</Th>
-                <Th>Vehiculo</Th>
-                <Th>Costo</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {actividadReciente.map((item) => (
-                <Tr key={`${item.fecha}-${item.descripcion}`}>
-                  <Td>{item.fecha}</Td>
-                  <Td>{item.descripcion}</Td>
-                  <Td>{item.vehiculo}</Td>
-                  <Td>{item.costo}</Td>
+        {ultimosMantenimientos.length === 0 ? (
+          <Text fontSize="sm" color="secondary.500" py={4}>
+            Aun no has registrado mantenimientos.
+          </Text>
+        ) : (
+          <TableContainer>
+            <Table variant="simple" size="sm">
+              <Thead bg="secondary.50">
+                <Tr>
+                  <Th>Fecha</Th>
+                  <Th>Servicio</Th>
+                  <Th>Vehiculo</Th>
+                  <Th>Costo</Th>
+                  <Th>Estado Motor Reglas</Th>
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </TableContainer>
+              </Thead>
+              <Tbody>
+                {ultimosMantenimientos.map((item) => {
+                  const badgeColorScheme = {
+                    al_dia: 'green',
+                    proximo: 'blue',
+                    urgente: 'orange',
+                    vencido: 'red',
+                  }[item.estado] || 'gray';
+
+                  return (
+                    <Tr key={item.id}>
+                      <Td fontWeight="medium">{item.date}</Td>
+                      <Td fontWeight="semibold" color="brand.800">
+                        {item.maintenance_type}
+                      </Td>
+                      <Td>
+                        {item.vehicle_marca
+                          ? `${item.vehicle_marca} ${item.vehicle_modelo} (${item.vehicle_placa})`
+                          : `Vehiculo #${item.vehicle_id}`}
+                      </Td>
+                      <Td fontWeight="bold" color="brand.700">
+                        {formatCurrency(item.cost)}
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={badgeColorScheme} fontSize="0.65rem">
+                          {item.label}
+                        </Badge>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </Tbody>
+            </Table>
+          </TableContainer>
+        )}
       </Box>
 
-      {/* Estado del sistema */}
+      {/* Estado de la API y PostgreSQL */}
       <Box
         p={6}
         bg="white"
@@ -194,11 +400,11 @@ function Dashboard() {
         borderRadius="lg"
         boxShadow="sm"
       >
-        <Heading as="h2" size="md" mb={1}>
-          Estado del sistema
+        <Heading as="h2" size="md" mb={1} color="brand.800">
+          Estado del Sistema
         </Heading>
         <Text fontSize="sm" color="secondary.600" mb={3}>
-          Consulta real al endpoint <Code>/api/health</Code> del backend.
+          Diagnostico en vivo del endpoint <Code>/api/health</Code> y servicio PostgreSQL.
         </Text>
 
         {estadoApi.cargando && (

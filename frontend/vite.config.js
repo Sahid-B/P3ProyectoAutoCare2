@@ -15,8 +15,10 @@ export default defineConfig({
       manifest: false,
       injectRegister: 'auto',
       workbox: {
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Precarga de recursos estaticos (cache basico).
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+
         cleanupOutdatedCaches: true,
         // Fallback offline: cualquier navegacion sin conexion sirve index.html
         // (la SPA se encarga del enrutado). Las llamadas al API quedan excluidas.

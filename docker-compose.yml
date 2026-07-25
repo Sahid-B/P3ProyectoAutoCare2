@@ -8,7 +8,8 @@ services:
       POSTGRES_USER: ${DB_USER:-autocare_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-change_this_password}
     ports:
-      - '5432:5432'
+      - '${HOST_DB_PORT:-5435}:5432'
+
     volumes:
       - autocare-datos:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro

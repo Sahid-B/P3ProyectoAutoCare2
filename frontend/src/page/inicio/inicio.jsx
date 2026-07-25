@@ -3,7 +3,6 @@ import {
   Box,
   Container,
   SimpleGrid,
-  Stack,
   HStack,
   Flex,
   Image,
@@ -21,6 +20,7 @@ import {
 } from 'react-icons/fa6';
 import Layout from '../../components/layout/index.jsx';
 import Button from '../../components/button/index.jsx';
+import { useAuth } from '../../context/auth-context.jsx';
 
 const beneficios = [
   {
@@ -45,11 +45,10 @@ const beneficios = [
   },
   {
     icono: FaWifi,
-    titulo: 'Futura operacion sin conexion',
-    texto: 'La aplicacion sera instalable y podra consultarse sin Internet en las siguientes partes.',
+    titulo: 'Operación sin conexión (Offline)',
+    texto: 'La aplicacion es instalable como PWA y funciona sin Internet mediante IndexedDB.',
   },
 ];
-
 
 const funcionalidades = [
   'Registro de vehiculos con marca, modelo, anio y kilometraje.',
@@ -71,9 +70,10 @@ const mantenimientos = [
   'Revision tecnica',
 ];
 
-// Landing page de AutoCare.
+// Landing page de AutoCare adaptada al estado de autenticacion.
 function Inicio() {
   const navegar = useNavigate();
+  const { usuario } = useAuth();
 
   return (
     <Layout>
@@ -109,12 +109,25 @@ function Inicio() {
               </Text>
 
               <HStack spacing={4} flexWrap="wrap">
-                <Button variant="primary" onClick={() => navegar('/login')}>
-                  Iniciar sesion
-                </Button>
-                <Button variant="outline" onClick={() => navegar('/registro')}>
-                  Crear cuenta
-                </Button>
+                {usuario ? (
+                  <>
+                    <Button variant="primary" onClick={() => navegar('/dashboard')}>
+                      Ir al Dashboard
+                    </Button>
+                    <Button variant="outline" onClick={() => navegar('/vehiculos')}>
+                      Mis Vehículos
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="primary" onClick={() => navegar('/login')}>
+                      Iniciar sesion
+                    </Button>
+                    <Button variant="outline" onClick={() => navegar('/registro')}>
+                      Crear cuenta
+                    </Button>
+                  </>
+                )}
               </HStack>
             </Box>
 
@@ -209,7 +222,7 @@ function Inicio() {
             Funcionalidades
           </Heading>
           <Text color="secondary.600" mb={8} maxW="65ch">
-            Alcance previsto del proyecto. Se construye por partes durante la asignatura.
+            Alcance completo del sistema AutoCare.
           </Text>
 
           <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -235,23 +248,44 @@ function Inicio() {
         </Container>
       </Box>
 
-      {/* Llamado a la accion */}
+      {/* Llamado a la accion condicional al estado del usuario */}
       <Box py={{ base: 12, md: 16 }}>
         <Container maxW="1140px" textAlign="center">
-          <Heading as="h2" size="xl" mb={2}>
-            Empieza a cuidar tu vehiculo hoy
-          </Heading>
-          <Text color="secondary.600" mb={6} mx="auto" maxW="55ch">
-            Crea tu cuenta y registra tu primer vehiculo en pocos pasos.
-          </Text>
-          <HStack spacing={4} justify="center" flexWrap="wrap">
-            <Button variant="primary" onClick={() => navegar('/registro')}>
-              Crear cuenta
-            </Button>
-            <Button variant="secondary" onClick={() => navegar('/dashboard')}>
-              Ver dashboard de ejemplo
-            </Button>
-          </HStack>
+          {usuario ? (
+            <>
+              <Heading as="h2" size="xl" mb={2}>
+                ¡Bienvenido de nuevo, {usuario.nombre}! 👋
+              </Heading>
+              <Text color="secondary.600" mb={6} mx="auto" maxW="55ch">
+                Tu sesión está activa. Accede a tu panel para gestionar tus vehículos y servicios.
+              </Text>
+              <HStack spacing={4} justify="center" flexWrap="wrap">
+                <Button variant="primary" onClick={() => navegar('/dashboard')}>
+                  Ir a mi Dashboard
+                </Button>
+                <Button variant="secondary" onClick={() => navegar('/vehiculos')}>
+                  Ver mis vehículos
+                </Button>
+              </HStack>
+            </>
+          ) : (
+            <>
+              <Heading as="h2" size="xl" mb={2}>
+                Empieza a cuidar tu vehiculo hoy
+              </Heading>
+              <Text color="secondary.600" mb={6} mx="auto" maxW="55ch">
+                Crea tu cuenta y registra tu primer vehiculo en pocos pasos.
+              </Text>
+              <HStack spacing={4} justify="center" flexWrap="wrap">
+                <Button variant="primary" onClick={() => navegar('/registro')}>
+                  Crear cuenta
+                </Button>
+                <Button variant="secondary" onClick={() => navegar('/dashboard')}>
+                  Ver dashboard de ejemplo
+                </Button>
+              </HStack>
+            </>
+          )}
         </Container>
       </Box>
     </Layout>

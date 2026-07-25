@@ -74,8 +74,9 @@ function Sidebar() {
         fontSize="xs"
         color="secondary.500"
       >
-        Modulos en construccion. Se completaran en las siguientes partes.
+        AutoCare v1.0.0 — Modulos de Vehiculos y Mantenimientos activos.
       </Text>
+
     </Box>
   );
 }

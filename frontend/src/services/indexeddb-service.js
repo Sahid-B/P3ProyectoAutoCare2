@@ -1,39 +1,35 @@
-// Servicio de IndexedDB inicial para el modulo de vehiculos (Parte 3).
-//
-// Objetivo de esta etapa:
-//   - Guardar localmente el ultimo listado de vehiculos recibido del backend.
-//   - Permitir mostrar esos vehiculos si la conexion falla (modo lectura offline).
-//   - Dejar preparado un almacen "pending_operations" para la FUTURA cola de
-//     sincronizacion (Parte 4). En esta parte NO se sincroniza nada todavia.
-//
-// Se usa la libreria "idb" (envoltura ligera sobre IndexedDB). No se usa
-// localStorage para los datos de vehiculos.
+// Servicio de IndexedDB para vehiculos, mantenimientos y operaciones pendientes (Parte 4).
 import { openDB } from 'idb';
 
 const DB_NAME = 'autocare-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_VEHICLES = 'vehicles';
+const STORE_MAINTENANCES = 'maintenances';
 const STORE_PENDING = 'pending_operations';
 
 let dbPromise = null;
 
-/** Abre (o crea) la base de datos IndexedDB y sus almacenes. */
+/** Abre (o crea/actualiza) la base de datos IndexedDB y sus almacenes. */
 export function initDatabase() {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion) {
         if (!db.objectStoreNames.contains(STORE_VEHICLES)) {
           db.createObjectStore(STORE_VEHICLES, { keyPath: 'id' });
         }
         if (!db.objectStoreNames.contains(STORE_PENDING)) {
-          // Almacen preparado para la cola de sincronizacion futura (Parte 4).
           db.createObjectStore(STORE_PENDING, { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains(STORE_MAINTENANCES)) {
+          db.createObjectStore(STORE_MAINTENANCES, { keyPath: 'id' });
         }
       },
     });
   }
   return dbPromise;
 }
+
+// --- Vehiculos ---
 
 /** Reemplaza el listado local con el ultimo listado recibido del backend. */
 export async function saveVehicles(vehicles = []) {
@@ -70,9 +66,44 @@ export async function deleteVehicle(id) {
   return db.delete(STORE_VEHICLES, Number(id));
 }
 
-// --- Cola de operaciones pendientes (preparada para la Parte 4) ---
-// En la Parte 3 estas funciones existen pero la sincronizacion real NO se
-// implementa. No se debe simular que una operacion llego al backend.
+// --- Mantenimientos ---
+
+/** Reemplaza el listado local de mantenimientos. */
+export async function saveMaintenances(maintenances = []) {
+  const db = await initDatabase();
+  const tx = db.transaction(STORE_MAINTENANCES, 'readwrite');
+  await tx.store.clear();
+  for (const item of maintenances) {
+    await tx.store.put(item);
+  }
+  await tx.done;
+}
+
+/** Devuelve todos los mantenimientos guardados localmente. */
+export async function getMaintenances() {
+  const db = await initDatabase();
+  return db.getAll(STORE_MAINTENANCES);
+}
+
+/** Devuelve un mantenimiento por ID local. */
+export async function getMaintenance(id) {
+  const db = await initDatabase();
+  return db.get(STORE_MAINTENANCES, Number(id));
+}
+
+/** Guarda o actualiza un mantenimiento localmente. */
+export async function saveMaintenance(maintenance) {
+  const db = await initDatabase();
+  return db.put(STORE_MAINTENANCES, maintenance);
+}
+
+/** Elimina un mantenimiento local. */
+export async function deleteMaintenance(id) {
+  const db = await initDatabase();
+  return db.delete(STORE_MAINTENANCES, Number(id));
+}
+
+// --- Cola de operaciones pendientes ---
 
 /** Agrega una operacion pendiente de sincronizar. */
 export async function addPendingOperation(operacion) {
@@ -84,6 +115,12 @@ export async function addPendingOperation(operacion) {
 export async function getPendingOperations() {
   const db = await initDatabase();
   return db.getAll(STORE_PENDING);
+}
+
+/** Elimina una operacion pendiente por su id. */
+export async function removePendingOperation(id) {
+  const db = await initDatabase();
+  return db.delete(STORE_PENDING, id);
 }
 
 /** Vacia la cola de operaciones pendientes. */
@@ -99,7 +136,13 @@ export default {
   getVehicle,
   saveVehicle,
   deleteVehicle,
+  saveMaintenances,
+  getMaintenances,
+  getMaintenance,
+  saveMaintenance,
+  deleteMaintenance,
   addPendingOperation,
   getPendingOperations,
+  removePendingOperation,
   clearPendingOperations,
 };

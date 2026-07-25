@@ -4,6 +4,7 @@ const cors = require('cors');
 const healthRoutes = require('./routes/health-routes');
 const authRoutes = require('./routes/auth-routes');
 const vehicleRoutes = require('./routes/vehicle-routes');
+const maintenanceRoutes = require('./routes/maintenance-routes');
 
 // Configuracion de la aplicacion Express de AutoCare.
 const app = express();
@@ -19,6 +20,8 @@ app.use(express.json());
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/vehicles', vehicleRoutes);
+app.use('/api/maintenances', maintenanceRoutes);
+
 
 
 // Ruta raiz informativa

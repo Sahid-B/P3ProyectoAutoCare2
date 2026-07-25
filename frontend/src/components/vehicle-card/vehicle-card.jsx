@@ -46,7 +46,7 @@ function ImagenVehiculo({ url, alt }) {
 }
 
 /**
- * Tarjeta de un vehiculo. Muestra imagen, datos principales y acciones.
+ * Tarjeta de un vehiculo. Muestra imagen, datos principales y acciones de forma limpia.
  */
 function VehicleCard({ vehiculo, onVer, onEditar, onEliminar }) {
   return (
@@ -90,10 +90,11 @@ function VehicleCard({ vehiculo, onVer, onEditar, onEliminar }) {
 
         <Divider mb={3} mt="auto" />
 
-        <HStack spacing={2}>
+        <HStack spacing={1} justify="space-between">
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
+            colorScheme="brand"
             leftIcon={<Icon as={FaEye} />}
             onClick={() => onVer?.(vehiculo)}
             flex="1"
@@ -103,18 +104,20 @@ function VehicleCard({ vehiculo, onVer, onEditar, onEliminar }) {
           <Button
             size="sm"
             variant="ghost"
-            colorScheme="brand"
+            colorScheme="blue"
             leftIcon={<Icon as={FaPen} />}
             onClick={() => onEditar?.(vehiculo)}
+            flex="1"
           >
             Editar
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            colorScheme="error"
+            colorScheme="red"
             leftIcon={<Icon as={FaTrash} />}
             onClick={() => onEliminar?.(vehiculo)}
+            flex="1"
           >
             Eliminar
           </Button>

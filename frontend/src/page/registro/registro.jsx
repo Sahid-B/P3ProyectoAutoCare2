@@ -10,10 +10,13 @@ import {
   Link,
   Alert,
   AlertIcon,
+  Divider,
+  HStack,
 } from '@chakra-ui/react';
 import Layout from '../../components/layout/index.jsx';
 import Input from '../../components/input/index.jsx';
 import Button from '../../components/button/index.jsx';
+import GoogleButton from '../../components/google-button/index.jsx';
 import { useAuth } from '../../context/auth-context.jsx';
 
 const formularioInicial = {
@@ -26,13 +29,13 @@ const formularioInicial = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Pantalla de registro de usuarios conectada con el backend (Parte 2).
+// Pantalla de registro de usuarios conectada con el backend (Parte 2 y Google OAuth Parte 4).
 function Registro() {
   const [formulario, setFormulario] = useState(formularioInicial);
   const [errorMsg, setErrorMsg] = useState('');
   const [cargando, setCargando] = useState(false);
 
-  const { registro } = useAuth();
+  const { registro, loginGoogle } = useAuth();
   const navigate = useNavigate();
 
   const manejarCambio = (evento) => {
@@ -87,6 +90,19 @@ function Registro() {
     }
   };
 
+  const manejarExitoGoogle = async (credential) => {
+    try {
+      setCargando(true);
+      setErrorMsg('');
+      await loginGoogle(credential);
+      navigate('/dashboard');
+    } catch (error) {
+      setErrorMsg(error.message || 'Error al registrarse con Google.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
   return (
     <Layout>
       <Flex
@@ -131,7 +147,7 @@ function Registro() {
                 name="nombre"
                 value={formulario.nombre}
                 onChange={manejarCambio}
-                placeholder="Jhonny"
+                placeholder="Jose"
                 required
               />
 
@@ -140,7 +156,7 @@ function Registro() {
                 name="apellido"
                 value={formulario.apellido}
                 onChange={manejarCambio}
-                placeholder="Romero"
+                placeholder="Perez"
                 required
               />
             </SimpleGrid>
@@ -180,8 +196,19 @@ function Registro() {
             </Button>
           </Box>
 
+          <HStack my={5} spacing={3}>
+            <Divider />
+            <Text fontSize="xs" color="secondary.500" whiteSpace="nowrap">
+              O registrate con
+            </Text>
+            <Divider />
+          </HStack>
+
+          {/* Boton Google OAuth 2.0 */}
+          <GoogleButton alExito={manejarExitoGoogle} cargando={cargando} texto="Registrarse con Google" />
+
           {errorMsg && (
-            <Alert status="error" borderRadius="md" mt={6} fontSize="sm">
+            <Alert status="error" borderRadius="md" mt={4} fontSize="sm">
               <AlertIcon />
               {errorMsg}
             </Alert>

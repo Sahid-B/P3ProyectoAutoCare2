@@ -10,7 +10,14 @@ import {
   NuevoVehiculo,
   EditarVehiculo,
   DetalleVehiculo,
+  Mantenimientos,
+  NuevoMantenimiento,
+  DetalleMantenimiento,
+  EditarMantenimiento,
+  Historial,
+  Perfil,
 } from '../page/index.jsx';
+
 
 import ProtectedRoute from '../components/protected-route/index.jsx';
 
@@ -68,15 +75,36 @@ function AppRouter() {
           }
         />
 
+        {/* Modulo de mantenimientos (Parte 4) */}
         <Route
           path="/mantenimientos"
           element={
             <ProtectedRoute>
-              <EnConstruccion
-                titulo="Mantenimientos"
-                descripcion="Aqui se registraran los mantenimientos y se calcularan los proximos servicios."
-                parte="la Parte 3"
-              />
+              <Mantenimientos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mantenimientos/nuevo"
+          element={
+            <ProtectedRoute>
+              <NuevoMantenimiento />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mantenimientos/:id"
+          element={
+            <ProtectedRoute>
+              <DetalleMantenimiento />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mantenimientos/:id/editar"
+          element={
+            <ProtectedRoute>
+              <EditarMantenimiento />
             </ProtectedRoute>
           }
         />
@@ -85,11 +113,7 @@ function AppRouter() {
           path="/historial"
           element={
             <ProtectedRoute>
-              <EnConstruccion
-                titulo="Historial"
-                descripcion="Aqui se consultara el historial completo de servicios por vehiculo."
-                parte="la Parte 3"
-              />
+              <Historial />
             </ProtectedRoute>
           }
         />
@@ -98,20 +122,16 @@ function AppRouter() {
           path="/perfil"
           element={
             <ProtectedRoute>
-              <EnConstruccion
-                titulo="Perfil"
-                descripcion="Aqui se mostraran y editaran los datos de la cuenta del usuario."
-                parte="la Parte 2"
-              />
+              <Perfil />
             </ProtectedRoute>
           }
         />
+
 
         <Route path="*" element={<NoEncontrado />} />
       </Routes>
     </BrowserRouter>
   );
 }
-
 
 export default AppRouter;
