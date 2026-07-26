@@ -78,7 +78,11 @@ function Login() {
         contrasena: formulario.contrasena,
       });
 
-      if (res?.requiere2FA) {
+      if (res?.requiereVerificacion) {
+        navigate('/registro/verificacion', {
+          state: { userId: res.userId, correo: res.correo },
+        });
+      } else if (res?.requiere2FA) {
         setRequiere2FA(true);
         setUserId2FA(res.userId);
         onOpen2FA();

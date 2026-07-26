@@ -14,6 +14,38 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
+function generarCodigoOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function guardarYEnviarCodigoVerificacion(usuario) {
+  if (!smtpConfigurado()) {
+    return {
+      success: false,
+      status: 503,
+      message: 'El envio de correo (SMTP) no esta configurado en el servidor.',
+    };
+  }
+
+  const codigoOtp = generarCodigoOtp();
+  await pool.query(
+    "UPDATE users SET otp_code = $1, otp_expires_at = CURRENT_TIMESTAMP + INTERVAL '10 minutes' WHERE id = $2",
+    [codigoOtp, usuario.id],
+  );
+
+  const resultadoCorreo = await enviarCodigoOTP(usuario.correo, codigoOtp);
+  if (!resultadoCorreo.success) {
+    console.error('[auth-controller] No se pudo enviar el correo de verificacion:', resultadoCorreo.error);
+    return {
+      success: false,
+      status: 502,
+      message: 'No se pudo enviar el correo de verificacion. Revisa la configuracion SMTP.',
+    };
+  }
+
+  return { success: true };
+}
+
 /**
  * Registro de un nuevo usuario.
  * POST /api/auth/register
@@ -58,34 +90,70 @@ async function registrar(req, res) {
       });
     }
 
+    if (!smtpConfigurado()) {
+      console.error('[auth-controller] SMTP no configurado, no se puede enviar el codigo de verificacion.');
+      return res.status(503).json({
+        success: false,
+        message: 'SMTP no configurado. No se puede enviar el codigo de verificacion por correo.',
+      });
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(claveAcceso, salt);
+    
+    const client = await pool.connect();
+    let usuario;
 
-    const nuevoUsuario = await pool.query(
-      `INSERT INTO users (nombre, apellido, correo, password_hash)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, nombre, apellido, correo, is_2fa_enabled, google_id, created_at`,
-      [nombre.trim(), apellido.trim(), correoLimpio, passwordHash],
-    );
+    try {
+      await client.query('BEGIN');
+      const rolSeleccionado = req.body.rol === 'taller' ? 'taller' : 'usuario';
+      const nuevoUsuario = await client.query(
+        `INSERT INTO users (nombre, apellido, correo, password_hash, email_verified, rol)
+         VALUES ($1, $2, $3, $4, FALSE, $5)
+         RETURNING id, nombre, apellido, correo, email_verified, is_2fa_enabled, google_id, created_at, rol, is_active`,
+        [nombre.trim(), apellido.trim(), correoLimpio, passwordHash, rolSeleccionado],
+      );
 
-    const usuario = nuevoUsuario.rows[0];
+      usuario = nuevoUsuario.rows[0];
 
-    const token = jwt.sign(
-      {
-        id: usuario.id,
-        correo: usuario.correo,
-        nombre: usuario.nombre,
-        apellido: usuario.apellido,
-      },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN },
-    );
+      if (rolSeleccionado === 'taller' && req.body.taller_datos) {
+        const { nombre_taller, direccion, latitud, longitud } = req.body.taller_datos;
+        if (!nombre_taller || !direccion || latitud === undefined || longitud === undefined) {
+          throw new Error('Faltan datos del taller.');
+        }
+        await client.query(
+          `INSERT INTO talleres (usuario_id, nombre_taller, direccion, latitud, longitud)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [usuario.id, nombre_taller.trim(), direccion.trim(), latitud, longitud]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      console.error('[auth-controller] Error en la transaccion de registro:', e);
+      return res.status(400).json({
+        success: false,
+        message: e.message === 'Faltan datos del taller.' ? e.message : 'Error al registrar el usuario.',
+      });
+    } finally {
+      client.release();
+    }
+
+    const resultadoVerificacion = await guardarYEnviarCodigoVerificacion(usuario);
+    if (!resultadoVerificacion.success) {
+      return res.status(resultadoVerificacion.status).json({
+        success: false,
+        message: resultadoVerificacion.message,
+      });
+    }
 
     return res.status(201).json({
       success: true,
-      message: 'Usuario registrado exitosamente.',
-      token,
-      usuario,
+      message: 'Usuario registrado exitosamente. Se envio un codigo de verificacion a tu correo.',
+      requiereVerificacion: true,
+      userId: usuario.id,
+      correo: usuario.correo,
     });
   } catch (error) {
     console.error('[auth-controller] Error en registro:', error);
@@ -115,7 +183,7 @@ async function iniciarSesion(req, res) {
     const correoLimpio = correo.trim().toLowerCase();
 
     const resultado = await pool.query(
-      'SELECT id, nombre, apellido, correo, password_hash, is_2fa_enabled, totp_secret, created_at FROM users WHERE LOWER(correo) = $1',
+      'SELECT id, nombre, apellido, correo, password_hash, email_verified, is_2fa_enabled, totp_secret, created_at, rol, is_active FROM users WHERE LOWER(correo) = $1',
       [correoLimpio],
     );
 
@@ -127,6 +195,13 @@ async function iniciarSesion(req, res) {
     }
 
     const usuario = resultado.rows[0];
+    
+    if (usuario.is_active === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tu cuenta ha sido suspendida. Contacta a un administrador.',
+      });
+    }
 
     if (!usuario.password_hash) {
       return res.status(401).json({
@@ -144,10 +219,28 @@ async function iniciarSesion(req, res) {
       });
     }
 
+    if (!usuario.email_verified) {
+      const resultadoVerificacion = await guardarYEnviarCodigoVerificacion(usuario);
+      if (!resultadoVerificacion.success) {
+        return res.status(resultadoVerificacion.status).json({
+          success: false,
+          message: resultadoVerificacion.message,
+        });
+      }
+
+      return res.json({
+        success: true,
+        requiereVerificacion: true,
+        userId: usuario.id,
+        correo: usuario.correo,
+        message: 'Debes verificar tu correo antes de ingresar. Enviamos un nuevo codigo de verificacion.',
+      });
+    }
+
     // Verificar si el usuario tiene 2FA activado
     if (usuario.is_2fa_enabled) {
       // Generar codigo OTP por correo por defecto si no utiliza TOTP exclusivamente
-      const codigoOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      const codigoOtp = generarCodigoOtp();
       await pool.query(
         "UPDATE users SET otp_code = $1, otp_expires_at = CURRENT_TIMESTAMP + INTERVAL '10 minutes' WHERE id = $2",
         [codigoOtp, usuario.id],
@@ -174,6 +267,7 @@ async function iniciarSesion(req, res) {
         correo: usuario.correo,
         nombre: usuario.nombre,
         apellido: usuario.apellido,
+        rol: usuario.rol,
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
@@ -213,7 +307,7 @@ async function verificarLogin2FA(req, res) {
     }
 
     const resultado = await pool.query(
-      'SELECT id, nombre, apellido, correo, is_2fa_enabled, totp_secret, otp_code, otp_expires_at FROM users WHERE id = $1',
+      'SELECT id, nombre, apellido, correo, email_verified, is_2fa_enabled, totp_secret, otp_code, otp_expires_at, rol, is_active FROM users WHERE id = $1',
       [userId],
     );
 
@@ -225,6 +319,14 @@ async function verificarLogin2FA(req, res) {
     }
 
     const usuario = resultado.rows[0];
+    
+    if (usuario.is_active === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tu cuenta ha sido suspendida. Contacta a un administrador.',
+      });
+    }
+    
     let esCodigoValido = false;
 
     // 1. Probar codigo TOTP (Google Authenticator) si tiene secreto configurado
@@ -251,8 +353,11 @@ async function verificarLogin2FA(req, res) {
       });
     }
 
-    // Limpiar codigo OTP despues de uso
-    await pool.query('UPDATE users SET otp_code = NULL, otp_expires_at = NULL WHERE id = $1', [usuario.id]);
+    // Marcar el correo como verificado y limpiar el OTP despues de usarlo.
+    await pool.query(
+      'UPDATE users SET email_verified = TRUE, otp_code = NULL, otp_expires_at = NULL WHERE id = $1',
+      [usuario.id],
+    );
 
     // Generar token JWT final
     const token = jwt.sign(
@@ -261,6 +366,7 @@ async function verificarLogin2FA(req, res) {
         correo: usuario.correo,
         nombre: usuario.nombre,
         apellido: usuario.apellido,
+        rol: usuario.rol,
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
@@ -278,6 +384,7 @@ async function verificarLogin2FA(req, res) {
         nombre: usuario.nombre,
         apellido: usuario.apellido,
         correo: usuario.correo,
+        email_verified: true,
         is_2fa_enabled: usuario.is_2fa_enabled,
       },
     });
@@ -306,7 +413,7 @@ async function obtenerPerfil(req, res) {
     }
 
     const resultado = await pool.query(
-      'SELECT id, nombre, apellido, correo, is_2fa_enabled, google_id, created_at FROM users WHERE id = $1',
+      'SELECT id, nombre, apellido, correo, email_verified, is_2fa_enabled, google_id, created_at, rol, is_active FROM users WHERE id = $1',
       [usuarioId],
     );
 
@@ -376,7 +483,7 @@ async function actualizarPerfil(req, res) {
       `UPDATE users
        SET nombre = $1, apellido = $2, updated_at = CURRENT_TIMESTAMP
        WHERE id = $3
-       RETURNING id, nombre, apellido, correo, is_2fa_enabled, google_id, created_at`,
+       RETURNING id, nombre, apellido, correo, email_verified, is_2fa_enabled, google_id, created_at, rol, is_active`,
       [nombre.trim(), apellido.trim(), usuarioId],
     );
 
@@ -489,7 +596,7 @@ async function enviarOtpPrueba(req, res) {
     }
 
     const correo = resUser.rows[0].correo;
-    const codigoOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const codigoOtp = generarCodigoOtp();
 
     await pool.query(
       "UPDATE users SET otp_code = $1, otp_expires_at = CURRENT_TIMESTAMP + INTERVAL '10 minutes' WHERE id = $2",
@@ -570,7 +677,7 @@ async function autenticarConGoogle(req, res) {
       });
     }
 
-    const { sub: googleId, email, email_verified, given_name, family_name, name } = payload;
+    const { sub: googleId, email, email_verified: googleEmailVerified, given_name, family_name, name } = payload;
 
     if (!email) {
       return res.status(400).json({
@@ -579,7 +686,7 @@ async function autenticarConGoogle(req, res) {
       });
     }
 
-    if (email_verified === false) {
+    if (googleEmailVerified === false) {
       return res.status(401).json({
         success: false,
         message: 'El correo de la cuenta de Google no esta verificado.',
@@ -591,7 +698,7 @@ async function autenticarConGoogle(req, res) {
     const apellido = family_name || 'Google';
 
     let resultado = await pool.query(
-      'SELECT id, nombre, apellido, correo, is_2fa_enabled, google_id, created_at FROM users WHERE google_id = $1 OR LOWER(correo) = $2',
+      'SELECT id, nombre, apellido, correo, email_verified, is_2fa_enabled, google_id, created_at, rol, is_active FROM users WHERE google_id = $1 OR LOWER(correo) = $2',
       [googleId, correoLimpio],
     );
 
@@ -599,18 +706,33 @@ async function autenticarConGoogle(req, res) {
 
     if (resultado.rows.length > 0) {
       usuario = resultado.rows[0];
+      
+      if (usuario.is_active === false) {
+        return res.status(403).json({
+          success: false,
+          message: 'Tu cuenta ha sido suspendida. Contacta a un administrador.',
+        });
+      }
+
       if (!usuario.google_id) {
         await pool.query(
-          'UPDATE users SET google_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          'UPDATE users SET google_id = $1, email_verified = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
           [googleId, usuario.id],
         );
         usuario.google_id = googleId;
+        usuario.email_verified = true;
+      } else if (!usuario.email_verified) {
+        await pool.query(
+          'UPDATE users SET email_verified = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+          [usuario.id],
+        );
+        usuario.email_verified = true;
       }
     } else {
       const nuevo = await pool.query(
-        `INSERT INTO users (nombre, apellido, correo, google_id)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, nombre, apellido, correo, is_2fa_enabled, google_id, created_at`,
+        `INSERT INTO users (nombre, apellido, correo, google_id, email_verified)
+         VALUES ($1, $2, $3, $4, TRUE)
+         RETURNING id, nombre, apellido, correo, email_verified, is_2fa_enabled, google_id, created_at, rol, is_active`,
         [nombre, apellido, correoLimpio, googleId],
       );
       usuario = nuevo.rows[0];
@@ -622,6 +744,7 @@ async function autenticarConGoogle(req, res) {
         correo: usuario.correo,
         nombre: usuario.nombre,
         apellido: usuario.apellido,
+        rol: usuario.rol,
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
@@ -636,6 +759,7 @@ async function autenticarConGoogle(req, res) {
         nombre: usuario.nombre,
         apellido: usuario.apellido,
         correo: usuario.correo,
+        email_verified: usuario.email_verified,
         is_2fa_enabled: usuario.is_2fa_enabled,
         created_at: usuario.created_at,
       },

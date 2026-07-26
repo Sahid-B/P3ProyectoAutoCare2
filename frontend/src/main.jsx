@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ChakraProvider, ColorModeScript } from '@chakra-ui/react';
 import App from './App.jsx';
 import theme from './theme/theme.js';
+import 'leaflet/dist/leaflet.css';
 import { inicializarSincronizador, procesarColaOperaciones } from './services/sync-service.js';
 import './index.css';
 

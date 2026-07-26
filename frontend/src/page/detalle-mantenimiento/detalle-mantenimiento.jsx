@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Flex, Spinner, Text, HStack, useToast, Alert, AlertIcon } from '@chakra-ui/react';
 import Layout from '../../components/layout/index.jsx';
 import MaintenanceDetail from '../../components/maintenance-detail/index.jsx';

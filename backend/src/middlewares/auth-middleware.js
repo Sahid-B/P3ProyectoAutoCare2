@@ -28,4 +28,18 @@ function verificarToken(req, res, next) {
   }
 }
 
-module.exports = { verificarToken, JWT_SECRET };
+/**
+ * Middleware para verificar si el usuario tiene rol de administrador.
+ * Debe ejecutarse DESPUES de verificarToken.
+ */
+function verificarRolAdmin(req, res, next) {
+  if (!req.usuario || req.usuario.rol !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Acceso denegado. Se requiere rol de administrador.',
+    });
+  }
+  next();
+}
+
+module.exports = { verificarToken, verificarRolAdmin, JWT_SECRET };

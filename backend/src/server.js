@@ -13,6 +13,7 @@ async function iniciarServidor() {
 
   // Se aplican las migraciones pendientes. Si una migracion critica falla,
   // se detiene el arranque para no operar con un esquema inconsistente.
+
   try {
     await ejecutarMigraciones();
   } catch (error) {

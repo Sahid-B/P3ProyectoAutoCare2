@@ -30,7 +30,7 @@ function Footer() {
       borderColor="secondary.800"
     >
       <Container maxW="1200px" py={{ base: 10, md: 14 }} px={{ base: 6, md: 8 }}>
-        <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={8} mb={10}>
+        <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={8} mb={10}>
           {/* Columna 1: Marca e Identidad */}
           <Stack spacing={4}>
             <HStack spacing={3} align="center">
@@ -99,23 +99,6 @@ function Footer() {
                 <Text>Sincronización Offline</Text>
               </HStack>
             </VStack>
-          </Stack>
-
-          {/* Columna 4: Créditos Académicos */}
-          <Stack spacing={3}>
-            <Text fontSize="sm" fontWeight="bold" color="white" textTransform="uppercase" letterSpacing="0.05em">
-              Proyecto Académico
-            </Text>
-            <Text fontSize="sm" color="secondary.400">
-              Programación Integrativa de Componentes Web
-            </Text>
-            <Text fontSize="xs" fontWeight="semibold" color="brand.300">
-              Grupo 5 - AutoCare
-            </Text>
-            <HStack spacing={2} pt={1} color="secondary.500" fontSize="xs">
-              <Icon as={FaShieldHalved} boxSize={3.5} color="green.400" />
-              <Text>JWT + OAuth 2.0 Auth</Text>
-            </HStack>
           </Stack>
         </SimpleGrid>
 

@@ -91,7 +91,11 @@ export function AuthProvider({ children }) {
 
   const registro = async (datosRegistro) => {
     const respuesta = await apiRegistrarUsuario(datosRegistro);
-    if (respuesta?.token && respuesta?.usuario) {
+    if (respuesta?.requiereVerificacion || respuesta?.requiere2FA) {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUsuario(null);
+    } else if (respuesta?.token && respuesta?.usuario) {
       localStorage.setItem(TOKEN_KEY, respuesta.token);
       setToken(respuesta.token);
       setUsuario(respuesta.usuario);

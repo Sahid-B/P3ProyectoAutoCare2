@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -12,12 +12,29 @@ import {
   AlertIcon,
   Divider,
   HStack,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
 } from '@chakra-ui/react';
 import Layout from '../../components/layout/index.jsx';
 import Input from '../../components/input/index.jsx';
 import Button from '../../components/button/index.jsx';
 import GoogleButton from '../../components/google-button/index.jsx';
 import { useAuth } from '../../context/auth-context.jsx';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+
+// Arreglar problema de iconos de Leaflet en React
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 const formularioInicial = {
   nombre: '',
@@ -25,18 +42,54 @@ const formularioInicial = {
   correo: '',
   contrasena: '',
   confirmarContrasena: '',
+  nombre_taller: '',
+  direccion: '',
+  telefono: '',
+  latitud: null,
+  longitud: null,
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Pantalla de registro de usuarios conectada con el backend (Parte 2 y Google OAuth Parte 4).
+function LocationMarker({ position, setPosition }) {
+  useMapEvents({
+    click(e) {
+      setPosition([e.latlng.lat, e.latlng.lng]);
+    },
+  });
+  return position === null ? null : <Marker position={position} />;
+}
+
 function Registro() {
   const [formulario, setFormulario] = useState(formularioInicial);
   const [errorMsg, setErrorMsg] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [rolSeleccionado, setRolSeleccionado] = useState('usuario');
 
   const { registro, loginGoogle } = useAuth();
   const navigate = useNavigate();
+
+  // Intentar obtener la ubicacion inicial del usuario (geolocalizacion)
+  useEffect(() => {
+    if (rolSeleccionado === 'taller' && !formulario.latitud && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setFormulario((prev) => ({
+            ...prev,
+            latitud: pos.coords.latitude,
+            longitud: pos.coords.longitude
+          }));
+        },
+        () => {
+          // Si rechaza o falla, poner un default (ej. Guayaquil)
+          setFormulario((prev) => ({ ...prev, latitud: -2.1894, longitud: -79.8891 }));
+        }
+      );
+    } else if (rolSeleccionado === 'taller' && !formulario.latitud) {
+      // Default
+      setFormulario((prev) => ({ ...prev, latitud: -2.1894, longitud: -79.8891 }));
+    }
+  }, [rolSeleccionado, formulario.latitud]);
 
   const manejarCambio = (evento) => {
     const { name, value } = evento.target;
@@ -55,8 +108,19 @@ function Registro() {
       !formulario.contrasena ||
       !formulario.confirmarContrasena
     ) {
-      setErrorMsg('Todos los campos son obligatorios.');
+      setErrorMsg('Todos los campos basicos son obligatorios.');
       return;
+    }
+
+    if (rolSeleccionado === 'taller') {
+      if (!formulario.nombre_taller.trim() || !formulario.direccion.trim()) {
+        setErrorMsg('Debes llenar el nombre y la direccion del taller.');
+        return;
+      }
+      if (formulario.latitud === null || formulario.longitud === null) {
+        setErrorMsg('Debes seleccionar la ubicacion de tu taller en el mapa.');
+        return;
+      }
     }
 
     if (!EMAIL_REGEX.test(formulario.correo.trim())) {
@@ -76,13 +140,33 @@ function Registro() {
 
     try {
       setCargando(true);
-      await registro({
+      const payload = {
         nombre: formulario.nombre.trim(),
         apellido: formulario.apellido.trim(),
         correo: formulario.correo.trim(),
         contrasena: formulario.contrasena,
-      });
-      navigate('/dashboard');
+        rol: rolSeleccionado,
+      };
+
+      if (rolSeleccionado === 'taller') {
+        payload.taller_datos = {
+          nombre_taller: formulario.nombre_taller.trim(),
+          direccion: formulario.direccion.trim(),
+          telefono: formulario.telefono.trim(),
+          latitud: formulario.latitud,
+          longitud: formulario.longitud,
+        };
+      }
+
+      const res = await registro(payload);
+
+      if (res?.requiereVerificacion || res?.requiere2FA) {
+        navigate('/registro/verificacion', {
+          state: { userId: res.userId, correo: res.correo },
+        });
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       setErrorMsg(error.message || 'Error al registrar el usuario.');
     } finally {
@@ -114,7 +198,7 @@ function Registro() {
       >
         <Box
           w="100%"
-          maxW="520px"
+          maxW={rolSeleccionado === 'taller' ? '800px' : '520px'}
           alignSelf="flex-start"
           p={8}
           bg="white"
@@ -123,6 +207,7 @@ function Registro() {
           borderRadius="lg"
           boxShadow="lg"
           textAlign="center"
+          transition="max-width 0.3s ease"
         >
           <Image
             src="/logo-autocare.png"
@@ -137,64 +222,126 @@ function Registro() {
             Crear cuenta
           </Heading>
           <Text fontSize="sm" color="secondary.600" mb={6}>
-            Registrate para llevar el control de tus vehiculos.
+            Unete a AutoCare como cliente o como taller mecanico.
           </Text>
 
-          <Box as="form" onSubmit={manejarEnvio} textAlign="left" noValidate>
-            <SimpleGrid columns={{ base: 1, sm: 2 }} spacingX={4}>
-              <Input
-                label="Nombre"
-                name="nombre"
-                value={formulario.nombre}
-                onChange={manejarCambio}
-                placeholder="Jose"
-                required
-              />
+          <Tabs isFitted variant="enclosed" colorScheme="brand" mb={6} onChange={(index) => setRolSeleccionado(index === 0 ? 'usuario' : 'taller')}>
+            <TabList mb="1em">
+              <Tab fontWeight="semibold">Soy Cliente</Tab>
+              <Tab fontWeight="semibold">Soy Taller</Tab>
+            </TabList>
 
-              <Input
-                label="Apellido"
-                name="apellido"
-                value={formulario.apellido}
-                onChange={manejarCambio}
-                placeholder="Perez"
-                required
-              />
-            </SimpleGrid>
+            <Box as="form" onSubmit={manejarEnvio} textAlign="left" noValidate>
+              <SimpleGrid columns={{ base: 1, md: rolSeleccionado === 'taller' ? 2 : 1 }} spacingX={8}>
+                {/* Lado Izquierdo: Datos Basicos */}
+                <Box>
+                  <Text fontWeight="bold" mb={4} color="secondary.700">Datos del Propietario</Text>
+                  <SimpleGrid columns={{ base: 1, sm: 2 }} spacingX={4}>
+                    <Input
+                      label="Nombre"
+                      name="nombre"
+                      value={formulario.nombre}
+                      onChange={manejarCambio}
+                      placeholder="Jose"
+                      required
+                    />
+                    <Input
+                      label="Apellido"
+                      name="apellido"
+                      value={formulario.apellido}
+                      onChange={manejarCambio}
+                      placeholder="Perez"
+                      required
+                    />
+                  </SimpleGrid>
 
-            <Input
-              label="Correo electronico"
-              type="email"
-              name="correo"
-              value={formulario.correo}
-              onChange={manejarCambio}
-              placeholder="usuario@correo.com"
-              required
-            />
+                  <Input
+                    label="Correo electronico"
+                    type="email"
+                    name="correo"
+                    value={formulario.correo}
+                    onChange={manejarCambio}
+                    placeholder="usuario@correo.com"
+                    required
+                  />
 
-            <Input
-              label="Contrasena"
-              type="password"
-              name="contrasena"
-              value={formulario.contrasena}
-              onChange={manejarCambio}
-              placeholder="Minimo 6 caracteres"
-              required
-            />
+                  <SimpleGrid columns={{ base: 1, sm: 2 }} spacingX={4}>
+                    <Input
+                      label="Contrasena"
+                      type="password"
+                      name="contrasena"
+                      value={formulario.contrasena}
+                      onChange={manejarCambio}
+                      placeholder="Minimo 6 caracteres"
+                      required
+                    />
+                    <Input
+                      label="Confirmar contrasena"
+                      type="password"
+                      name="confirmarContrasena"
+                      value={formulario.confirmarContrasena}
+                      onChange={manejarCambio}
+                      placeholder="Repite la contrasena"
+                      required
+                    />
+                  </SimpleGrid>
+                </Box>
 
-            <Input
-              label="Confirmar contrasena"
-              type="password"
-              name="confirmarContrasena"
-              value={formulario.confirmarContrasena}
-              onChange={manejarCambio}
-              placeholder="Repite la contrasena"
-              required
-            />
+                {/* Lado Derecho: Datos del Taller (Solo si es taller) */}
+                {rolSeleccionado === 'taller' && (
+                  <Box>
+                    <Text fontWeight="bold" mb={4} color="secondary.700">Datos del Taller</Text>
+                    <Input
+                      label="Nombre del Taller"
+                      name="nombre_taller"
+                      value={formulario.nombre_taller}
+                      onChange={manejarCambio}
+                      placeholder="Mecanica Perez"
+                      required
+                    />
+                    <Input
+                      label="Direccion"
+                      name="direccion"
+                      value={formulario.direccion}
+                      onChange={manejarCambio}
+                      placeholder="Av. Principal 123"
+                      required
+                    />
+                    
+                    <Box mt={4} mb={2}>
+                      <Text fontSize="sm" fontWeight="semibold" mb={2}>Ubicacion en el Mapa</Text>
+                      <Text fontSize="xs" color="gray.500" mb={2}>Haz clic en el mapa para marcar donde estas ubicado.</Text>
+                      {formulario.latitud !== null ? (
+                        <Box h="250px" borderRadius="md" overflow="hidden" border="1px solid" borderColor="gray.300">
+                          <MapContainer 
+                            center={[formulario.latitud, formulario.longitud]} 
+                            zoom={13} 
+                            style={{ height: '100%', width: '100%' }}
+                          >
+                            <TileLayer
+                              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            />
+                            <LocationMarker 
+                              position={[formulario.latitud, formulario.longitud]} 
+                              setPosition={(pos) => setFormulario(prev => ({...prev, latitud: pos[0], longitud: pos[1]}))} 
+                            />
+                          </MapContainer>
+                        </Box>
+                      ) : (
+                        <Box h="250px" bg="gray.100" display="flex" alignItems="center" justifyContent="center">
+                          <Text>Cargando mapa...</Text>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+              </SimpleGrid>
 
-            <Button type="submit" variant="primary" width="100%" mt={2} isLoading={cargando}>
-              Registrarse
-            </Button>
-          </Box>
+              <Button type="submit" variant="primary" width="100%" mt={8} isLoading={cargando}>
+                Registrarse como {rolSeleccionado === 'taller' ? 'Taller' : 'Cliente'}
+              </Button>
+            </Box>
+          </Tabs>
 
           <HStack my={5} spacing={3}>
             <Divider />
@@ -204,7 +351,6 @@ function Registro() {
             <Divider />
           </HStack>
 
-          {/* Boton Google OAuth 2.0 */}
           <GoogleButton alExito={manejarExitoGoogle} cargando={cargando} texto="Registrarse con Google" />
 
           {errorMsg && (
@@ -215,7 +361,7 @@ function Registro() {
           )}
 
           <Text fontSize="sm" color="secondary.600" mt={6}>
-            Ya tienes una cuenta?{' '}
+            ¿Ya tienes una cuenta?{' '}
             <Link as={RouterLink} to="/login" color="brand.600" fontWeight="semibold">
               Iniciar sesion
             </Link>

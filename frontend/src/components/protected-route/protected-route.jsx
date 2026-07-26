@@ -7,7 +7,7 @@ import { useAuth } from '../../context/auth-context.jsx';
  * Si la sesion esta cargando, muestra un indicador.
  * Si el usuario no esta autenticado, redirige a /login.
  */
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, requireAdmin = false }) {
   const { usuario, cargando } = useAuth();
 
   if (cargando) {
@@ -25,6 +25,10 @@ function ProtectedRoute({ children }) {
 
   if (!usuario) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (requireAdmin && usuario.rol !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

@@ -385,14 +385,7 @@ function Perfil() {
                 </Button>
               )}
 
-              <Button
-                variant="secondary"
-                onClick={handleProbarOtpCorreo}
-                isLoading={cargando2FA}
-                leftIcon={<FaEnvelope />}
-              >
-                Probar Envío de OTP por Correo SMTP
-              </Button>
+
             </VStack>
           </VStack>
         </Box>

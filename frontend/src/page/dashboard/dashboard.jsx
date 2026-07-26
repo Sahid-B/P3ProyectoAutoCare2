@@ -39,6 +39,19 @@ import {
 } from 'react-icons/fa6';
 
 import { Link as RouterLink } from 'react-router-dom';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
+} from 'recharts';
 import Layout from '../../components/layout/index.jsx';
 import NotificationCard from '../../components/notification-card/index.jsx';
 import { obtenerEstadoApi } from '../../services/api-service.js';
@@ -70,6 +83,9 @@ function Dashboard() {
 
   const [ultimosMantenimientos, setUltimosMantenimientos] = useState([]);
   const [alertasUrgentesVencidas, setAlertasUrgentesVencidas] = useState([]);
+  
+  const [dataMensual, setDataMensual] = useState([]);
+  const [dataTipos, setDataTipos] = useState([]);
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(val || 0);
@@ -132,6 +148,46 @@ function Dashboard() {
         gastoTotal,
         gastoMes,
       });
+
+      const clasificarTipo = (tipo) => {
+        if (!tipo) return 'Otros';
+        const preventivos = ['Cambio de aceite', 'Alineación y balanceo', 'Revisión general', 'Filtros', 'Preventivo'];
+        if (preventivos.some(p => tipo.toLowerCase().includes(p.toLowerCase()))) return 'Preventivo';
+        const correctivos = ['Frenos', 'Suspensión', 'Motor', 'Transmisión', 'Batería', 'Correctivo'];
+        if (correctivos.some(p => tipo.toLowerCase().includes(p.toLowerCase()))) return 'Correctivo';
+        return 'Otros';
+      };
+
+      const ultimos6Meses = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const mesStr = d.toLocaleString('es-ES', { month: 'short' });
+        ultimos6Meses.push({ name: mesStr.charAt(0).toUpperCase() + mesStr.slice(1), mesIdx: d.getMonth(), anio: d.getFullYear(), Gastos: 0 });
+      }
+
+      const conteoTipos = { Preventivo: 0, Correctivo: 0, Otros: 0 };
+
+      mantenimientos.forEach(m => {
+        const fechaM = new Date(m.date);
+        const mesM = fechaM.getMonth();
+        const anioM = fechaM.getFullYear();
+        
+        const mesEncontrado = ultimos6Meses.find(um => um.mesIdx === mesM && um.anio === anioM);
+        if (mesEncontrado) {
+          mesEncontrado.Gastos += Number(m.cost || 0);
+        }
+
+        const tipoClasificado = clasificarTipo(m.maintenance_type);
+        conteoTipos[tipoClasificado]++;
+      });
+
+      setDataMensual(ultimos6Meses);
+      setDataTipos(
+        Object.keys(conteoTipos)
+          .filter(k => conteoTipos[k] > 0)
+          .map(k => ({ name: k, value: conteoTipos[k] }))
+      );
 
       setUltimosMantenimientos(mantenimientosEvaluados.slice(0, 5));
       setAlertasUrgentesVencidas(alertas);
@@ -314,6 +370,60 @@ function Dashboard() {
         permisoPush={permisoPush}
       />
 
+      {/* Graficos (Recharts) */}
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={8}>
+        <Box p={6} bg="white" borderWidth="1px" borderColor="secondary.200" borderRadius="lg" boxShadow="sm">
+          <Heading as="h3" size="sm" color="secondary.800" mb={4}>
+            Gastos Mensuales de Mantenimiento
+          </Heading>
+          <Box h="300px" w="100%">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dataMensual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#718096', fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#718096', fontSize: 12}} tickFormatter={(value) => `$${value}`} />
+                <RechartsTooltip cursor={{fill: '#f7fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}} formatter={(value) => [`$${value}`, 'Gastos']} />
+                <Bar dataKey="Gastos" fill="#3182ce" radius={[4, 4, 0, 0]} barSize={30} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
+        </Box>
+
+        <Box p={6} bg="white" borderWidth="1px" borderColor="secondary.200" borderRadius="lg" boxShadow="sm">
+          <Heading as="h3" size="sm" color="secondary.800" mb={4}>
+            Mantenimientos Preventivos vs Correctivos
+          </Heading>
+          <Box h="300px" w="100%">
+            {dataTipos.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={dataTipos}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {dataTipos.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={['#3182ce', '#dd6b20', '#718096'][index % 3]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <Flex h="100%" align="center" justify="center">
+                <Text color="secondary.500" fontSize="sm">No hay mantenimientos clasificados aun.</Text>
+              </Flex>
+            )}
+          </Box>
+        </Box>
+      </SimpleGrid>
+
       {/* Ultimos Mantenimientos Registrados */}
       <Box
         p={6}
@@ -393,56 +503,7 @@ function Dashboard() {
         )}
       </Box>
 
-      {/* Estado de la API y PostgreSQL */}
-      <Box
-        p={6}
-        bg="white"
-        borderWidth="1px"
-        borderColor="secondary.200"
-        borderRadius="lg"
-        boxShadow="sm"
-      >
-        <Heading as="h2" size="md" mb={1} color="brand.800">
-          Estado del Sistema
-        </Heading>
-        <Text fontSize="sm" color="secondary.600" mb={3}>
-          Diagnostico en vivo del endpoint <Code>/api/health</Code> y servicio PostgreSQL.
-        </Text>
 
-        {estadoApi.cargando && (
-          <HStack fontSize="sm" color="secondary.600">
-            <Spinner size="sm" />
-            <Text>Consultando el backend...</Text>
-          </HStack>
-        )}
-
-        {estadoApi.error && (
-          <Alert status="error" borderRadius="md" fontSize="sm">
-            <AlertIcon />
-            No se pudo contactar al backend: {estadoApi.error}
-          </Alert>
-        )}
-
-        {estadoApi.datos && (
-          <Wrap spacing={3}>
-            <WrapItem>
-              <Badge colorScheme="success" px={3} py={1} borderRadius="md">
-                API: {estadoApi.datos.api}
-              </Badge>
-            </WrapItem>
-            <WrapItem>
-              <Badge colorScheme="success" px={3} py={1} borderRadius="md">
-                Base de datos: {estadoApi.datos.database}
-              </Badge>
-            </WrapItem>
-            <WrapItem>
-              <Badge colorScheme="success" px={3} py={1} borderRadius="md">
-                Consultado: {estadoApi.datos.timestamp}
-              </Badge>
-            </WrapItem>
-          </Wrap>
-        )}
-      </Box>
     </Layout>
   );
 }
