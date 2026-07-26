@@ -22,6 +22,7 @@ import Layout from '../../components/layout/index.jsx';
 import Input from '../../components/input/index.jsx';
 import Button from '../../components/button/index.jsx';
 import GoogleButton from '../../components/google-button/index.jsx';
+import RegistroVendedor from '../../components/registro-vendedor/index.jsx';
 import { useAuth } from '../../context/auth-context.jsx';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -50,6 +51,9 @@ const formularioInicial = {
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Rol asociado a cada pestana del formulario de registro.
+const ROLES_POR_PESTANA = ['usuario', 'taller', 'vendedor_repuestos'];
 
 function LocationMarker({ position, setPosition }) {
   useMapEvents({
@@ -174,6 +178,29 @@ function Registro() {
     }
   };
 
+  // Registro del rol "Vendo Repuestos". El componente RegistroVendedor valida
+  // sus propios campos y entrega aqui el payload ya listo para el backend.
+  const manejarEnvioVendedor = async (payload) => {
+    setErrorMsg('');
+
+    try {
+      setCargando(true);
+      const res = await registro(payload);
+
+      if (res?.requiereVerificacion || res?.requiere2FA) {
+        navigate('/registro/verificacion', {
+          state: { userId: res.userId, correo: res.correo },
+        });
+      } else {
+        navigate('/vendedor-dashboard');
+      }
+    } catch (error) {
+      setErrorMsg(error.message || 'Error al registrar la tienda de repuestos.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
   const manejarExitoGoogle = async (credential) => {
     try {
       setCargando(true);
@@ -198,7 +225,7 @@ function Registro() {
       >
         <Box
           w="100%"
-          maxW={rolSeleccionado === 'taller' ? '800px' : '520px'}
+          maxW={rolSeleccionado === 'usuario' ? '520px' : '800px'}
           alignSelf="flex-start"
           p={8}
           bg="white"
@@ -222,15 +249,28 @@ function Registro() {
             Crear cuenta
           </Heading>
           <Text fontSize="sm" color="secondary.600" mb={6}>
-            Unete a AutoCare como cliente o como taller mecanico.
+            Unete a AutoCare como cliente, como taller mecanico o como tienda de repuestos.
           </Text>
 
-          <Tabs isFitted variant="enclosed" colorScheme="brand" mb={6} onChange={(index) => setRolSeleccionado(index === 0 ? 'usuario' : 'taller')}>
+          <Tabs
+            isFitted
+            variant="enclosed"
+            colorScheme="brand"
+            mb={6}
+            onChange={(index) => setRolSeleccionado(ROLES_POR_PESTANA[index])}
+          >
             <TabList mb="1em">
               <Tab fontWeight="semibold">Soy Cliente</Tab>
               <Tab fontWeight="semibold">Soy Taller</Tab>
+              <Tab fontWeight="semibold">Vendo Repuestos</Tab>
             </TabList>
 
+            {rolSeleccionado === 'vendedor_repuestos' ? (
+              <RegistroVendedor
+                alRegistrar={manejarEnvioVendedor}
+                cargando={cargando}
+              />
+            ) : (
             <Box as="form" onSubmit={manejarEnvio} textAlign="left" noValidate>
               <SimpleGrid columns={{ base: 1, md: rolSeleccionado === 'taller' ? 2 : 1 }} spacingX={8}>
                 {/* Lado Izquierdo: Datos Basicos */}
@@ -341,6 +381,7 @@ function Registro() {
                 Registrarse como {rolSeleccionado === 'taller' ? 'Taller' : 'Cliente'}
               </Button>
             </Box>
+            )}
           </Tabs>
 
           <HStack my={5} spacing={3}>

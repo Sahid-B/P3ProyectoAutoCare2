@@ -48,6 +48,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # Pasarela de pagos del modulo de repuestos (PayPal Sandbox / modo simulado).
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_API_BASE: ${PAYPAL_API_BASE:-https://api-m.sandbox.paypal.com}
+      PAGOS_MODO_SIMULADO: ${PAGOS_MODO_SIMULADO:-true}
+      PAGOS_MONEDA: ${PAGOS_MONEDA:-USD}
     ports:
       - '3000:3000'
     # Recarga automatica durante el desarrollo

@@ -25,6 +25,17 @@ import {
   TallerDashboard,
   MiTaller,
   SolicitudesTaller,
+  VendedorDashboard,
+  MiTienda,
+  MisProductos,
+  NuevoProducto,
+  EditarProducto,
+  PedidosVendedor,
+  DetallePedido,
+  Repuestos,
+  DetalleRepuesto,
+  Carrito,
+  MisPedidos,
 } from '../page/index.jsx';
 
 import ProtectedRoute from '../components/protected-route/index.jsx';
@@ -47,7 +58,13 @@ function AppRouter() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              {usuario?.rol === 'taller' ? <Navigate to="/taller-dashboard" replace /> : <Dashboard />}
+              {usuario?.rol === 'taller' ? (
+                <Navigate to="/taller-dashboard" replace />
+              ) : usuario?.rol === 'vendedor_repuestos' ? (
+                <Navigate to="/vendedor-dashboard" replace />
+              ) : (
+                <Dashboard />
+              )}
             </ProtectedRoute>
           }
         />
@@ -188,6 +205,100 @@ function AppRouter() {
           element={
             <ProtectedRoute>
               <SolicitudesTaller />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Rutas protegidas (Vendedor de repuestos) */}
+        <Route
+          path="/vendedor-dashboard"
+          element={
+            <ProtectedRoute rolesPermitidos={['vendedor_repuestos']}>
+              <VendedorDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mi-tienda"
+          element={
+            <ProtectedRoute rolesPermitidos={['vendedor_repuestos']}>
+              <MiTienda />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mis-productos"
+          element={
+            <ProtectedRoute rolesPermitidos={['vendedor_repuestos']}>
+              <MisProductos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mis-productos/nuevo"
+          element={
+            <ProtectedRoute rolesPermitidos={['vendedor_repuestos']}>
+              <NuevoProducto />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mis-productos/:id/editar"
+          element={
+            <ProtectedRoute rolesPermitidos={['vendedor_repuestos']}>
+              <EditarProducto />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pedidos"
+          element={
+            <ProtectedRoute rolesPermitidos={['vendedor_repuestos']}>
+              <PedidosVendedor />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Detalle de pedido: lo consultan el cliente que compro y el vendedor */}
+        <Route
+          path="/pedidos/:id"
+          element={
+            <ProtectedRoute rolesPermitidos={['usuario', 'vendedor_repuestos', 'admin']}>
+              <DetallePedido />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catalogo de repuestos y carrito (clientes) */}
+        <Route
+          path="/repuestos"
+          element={
+            <ProtectedRoute rolesPermitidos={['usuario', 'admin']}>
+              <Repuestos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/repuestos/:id"
+          element={
+            <ProtectedRoute rolesPermitidos={['usuario', 'admin']}>
+              <DetalleRepuesto />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/carrito"
+          element={
+            <ProtectedRoute rolesPermitidos={['usuario']}>
+              <Carrito />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mis-pedidos"
+          element={
+            <ProtectedRoute rolesPermitidos={['usuario']}>
+              <MisPedidos />
             </ProtectedRoute>
           }
         />

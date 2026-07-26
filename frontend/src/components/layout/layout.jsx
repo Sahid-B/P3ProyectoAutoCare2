@@ -20,9 +20,9 @@ function Layout({ children, conSidebar = false }) {
       <Box as="main" flex="1" w="100%">
         {conSidebar ? (
           <Grid
-            maxW="1140px"
+            maxW="100%"
             mx="auto"
-            px={{ base: 4, md: 6 }}
+            px={{ base: 4, md: 6, xl: 8 }}
             py={{ base: 6, md: 8 }}
             gap={{ base: 6, lg: 8 }}
             templateColumns={{ base: '1fr', lg: '250px 1fr' }}

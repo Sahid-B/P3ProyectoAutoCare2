@@ -34,6 +34,21 @@ export default defineConfig({
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
+          // Catalogo de repuestos: NetworkFirst, para poder consultarlo sin
+          // conexion. Solo se cachean lecturas del catalogo; los pedidos y los
+          // pagos (/api/compras) nunca se cachean, para que una compra no pueda
+          // confirmarse con datos obsoletos ni sin conexion.
+          {
+            urlPattern: ({ url, request }) =>
+              request.method === 'GET' && url.pathname.startsWith('/api/productos/catalogo'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'autocare-catalogo-repuestos',
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),
@@ -41,6 +56,9 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    watch: {
+      usePolling: true,
+    },
   },
   preview: {
     host: true,

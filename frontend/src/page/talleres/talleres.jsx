@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Flex,
   Heading,
   Text,
-  SimpleGrid,
   Spinner,
   Alert,
   AlertIcon,
@@ -13,11 +13,17 @@ import {
   Stack,
   Button,
   Badge,
+  Checkbox,
+  HStack,
+  Icon,
 } from '@chakra-ui/react';
-import { FaLocationDot, FaPhone } from 'react-icons/fa6';
+import { FaLocationDot, FaPhone, FaClock, FaWrench, FaStore } from 'react-icons/fa6';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import Layout from '../../components/layout/index.jsx';
+import LeyendaMapa from '../../components/leyenda-mapa/index.jsx';
+import { obtenerUbicacionesMapa } from '../../services/repuestos-service.js';
+import { ICONO_TALLER, ICONO_TIENDA } from '../../utils/mapa-iconos.js';
 
 // Fix Leaflet icons
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -29,46 +35,55 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+// Centro por defecto del mapa cuando todavia no hay ubicaciones (Guayaquil).
+const CENTRO_POR_DEFECTO = [-2.1894, -79.8891];
+
 function Talleres() {
   const [talleres, setTalleres] = useState([]);
+  const [tiendas, setTiendas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
+  const [verTalleres, setVerTalleres] = useState(true);
+  const [verTiendas, setVerTiendas] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    async function cargarTalleres() {
+    let activo = true;
+
+    async function cargarUbicaciones() {
       try {
         setCargando(true);
-        const token = localStorage.getItem('autocare_token');
-        const res = await fetch('http://localhost:3000/api/talleres', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-          setTalleres(data.data);
-        } else {
-          setError(data.message || 'Error al cargar talleres');
-        }
+        const datos = await obtenerUbicacionesMapa();
+
+        if (!activo) return;
+        setTalleres(datos.talleres || []);
+        setTiendas(datos.tiendas || []);
       } catch (err) {
-        setError('No se pudo conectar con el servidor.');
+        if (activo) setError(err.message || 'No se pudo conectar con el servidor.');
       } finally {
-        setCargando(false);
+        if (activo) setCargando(false);
       }
     }
-    
-    cargarTalleres();
+
+    cargarUbicaciones();
+    return () => {
+      activo = false;
+    };
   }, []);
+
+  const talleresVisibles = verTalleres ? talleres : [];
+  const tiendasVisibles = verTiendas ? tiendas : [];
+  const hayUbicaciones = talleresVisibles.length > 0 || tiendasVisibles.length > 0;
+  const centroMapa = talleresVisibles[0] || tiendasVisibles[0];
 
   return (
     <Layout conSidebar>
-      <Box p={6}>
+      <Box p={{ base: 0, md: 2 }}>
         <Heading mb={2} color="secondary.800">
-          Directorio de Talleres
+          Talleres y tiendas de repuestos
         </Heading>
         <Text color="secondary.600" mb={6}>
-          Encuentra los mejores talleres mecanicos cerca de ti.
+          Encuentra talleres mecanicos y tiendas de repuestos cerca de ti.
         </Text>
 
         {error && (
@@ -83,77 +98,247 @@ function Talleres() {
             <Spinner size="xl" color="brand.500" />
           </Flex>
         ) : (
-          <Flex direction={{ base: 'column', lg: 'row' }} gap={6} h="calc(100vh - 200px)" minH="600px">
-            {/* Lado Izquierdo: Lista de Tarjetas */}
-            <Box flex="1" overflowY="auto" pr={2}>
-              {talleres.length === 0 ? (
-                <Text color="secondary.500">No hay talleres registrados aun.</Text>
-              ) : (
-                <Stack spacing={4}>
-                  {talleres.map((taller) => (
-                    <Card key={taller.id} variant="outline" borderColor="secondary.200" _hover={{ borderColor: 'brand.400', boxShadow: 'md' }}>
-                      <CardBody>
-                        <Flex justify="space-between" align="flex-start" mb={2}>
-                          <Heading size="md" color="secondary.800">{taller.nombre_taller}</Heading>
-                          <Badge colorScheme="green">⭐ {taller.calificacion || '5.0'}</Badge>
-                        </Flex>
-                        
-                        <Flex align="center" color="secondary.600" mb={1} fontSize="sm">
-                          <FaLocationDot style={{ marginRight: '8px' }} />
-                          <Text>{taller.direccion}</Text>
-                        </Flex>
-                        
-                        {taller.telefono && (
-                          <Flex align="center" color="secondary.600" mb={4} fontSize="sm">
-                            <FaPhone style={{ marginRight: '8px' }} />
-                            <Text>{taller.telefono}</Text>
-                          </Flex>
-                        )}
-                        
-                        <Button 
-                          as="a" 
-                          href={`mailto:${taller.correo}?subject=Consulta%20desde%20AutoCare`}
-                          size="sm" 
-                          variant="primary" 
-                          w="full"
-                        >
-                          Contactar Vía Correo
-                        </Button>
-                      </CardBody>
-                    </Card>
-                  ))}
-                </Stack>
-              )}
-            </Box>
+          <>
+            <HStack spacing={6} mb={5} flexWrap="wrap">
+              <Checkbox
+                isChecked={verTalleres}
+                onChange={(evento) => setVerTalleres(evento.target.checked)}
+                colorScheme="blue"
+              >
+                <HStack spacing={2}>
+                  <Icon as={FaWrench} color="blue.600" />
+                  <Text fontSize="sm" color="secondary.700">
+                    Talleres ({talleres.length})
+                  </Text>
+                </HStack>
+              </Checkbox>
 
-            {/* Lado Derecho: Mapa Grande */}
-            <Box flex={{ base: "none", lg: "2" }} h={{ base: "400px", lg: "100%" }} borderRadius="lg" overflow="hidden" boxShadow="md" border="1px solid" borderColor="secondary.200">
-              {talleres.length > 0 ? (
-                <MapContainer 
-                  center={[talleres[0].latitud, talleres[0].longitud]} 
-                  zoom={12} 
+              <Checkbox
+                isChecked={verTiendas}
+                onChange={(evento) => setVerTiendas(evento.target.checked)}
+                colorScheme="red"
+              >
+                <HStack spacing={2}>
+                  <Icon as={FaStore} color="red.600" />
+                  <Text fontSize="sm" color="secondary.700">
+                    Tiendas de repuestos ({tiendas.length})
+                  </Text>
+                </HStack>
+              </Checkbox>
+            </HStack>
+
+            <Flex direction={{ base: 'column', lg: 'row' }} gap={6} h={{ lg: 'calc(100vh - 260px)' }} minH={{ lg: '600px' }}>
+              {/* Lado Izquierdo: Lista de Tarjetas */}
+              <Box flex="1" overflowY={{ lg: 'auto' }} pr={{ lg: 2 }}>
+                {!hayUbicaciones ? (
+                  <Text color="secondary.500">No hay ubicaciones registradas aun.</Text>
+                ) : (
+                  <Stack spacing={4}>
+                    {talleresVisibles.map((taller) => (
+                      <Card
+                        key={`taller-${taller.id}`}
+                        variant="outline"
+                        borderColor="secondary.200"
+                        borderLeftWidth="4px"
+                        borderLeftColor="blue.500"
+                        _hover={{ borderColor: 'brand.400', boxShadow: 'md' }}
+                      >
+                        <CardBody>
+                          <Flex justify="space-between" align="flex-start" mb={2} gap={2}>
+                            <Box minW="0">
+                              <Badge colorScheme="blue" mb={1}>Taller mecanico</Badge>
+                              <Heading size="md" color="secondary.800" noOfLines={2}>
+                                {taller.nombre}
+                              </Heading>
+                            </Box>
+                            <Badge colorScheme="green" flexShrink={0}>
+                              {Number(taller.calificacion || 5).toFixed(1)}
+                            </Badge>
+                          </Flex>
+
+                          <Flex align="center" color="secondary.600" mb={1} fontSize="sm">
+                            <FaLocationDot style={{ marginRight: '8px', flexShrink: 0 }} />
+                            <Text>{taller.direccion}</Text>
+                          </Flex>
+
+                          {taller.telefono && (
+                            <Flex align="center" color="secondary.600" mb={1} fontSize="sm">
+                              <FaPhone style={{ marginRight: '8px', flexShrink: 0 }} />
+                              <Text>{taller.telefono}</Text>
+                            </Flex>
+                          )}
+
+                          {taller.horario && (
+                            <Flex align="center" color="secondary.600" mb={4} fontSize="sm">
+                              <FaClock style={{ marginRight: '8px', flexShrink: 0 }} />
+                              <Text>{taller.horario}</Text>
+                            </Flex>
+                          )}
+
+                          <Button
+                            as="a"
+                            href={`mailto:${taller.correo}?subject=Consulta%20desde%20AutoCare`}
+                            size="sm"
+                            variant="primary"
+                            w="full"
+                            mt={taller.horario ? 0 : 3}
+                          >
+                            Contactar Vía Correo
+                          </Button>
+                        </CardBody>
+                      </Card>
+                    ))}
+
+                    {tiendasVisibles.map((tienda) => (
+                      <Card
+                        key={`tienda-${tienda.id}`}
+                        variant="outline"
+                        borderColor="secondary.200"
+                        borderLeftWidth="4px"
+                        borderLeftColor="red.500"
+                        _hover={{ borderColor: 'brand.400', boxShadow: 'md' }}
+                      >
+                        <CardBody>
+                          <Flex justify="space-between" align="flex-start" mb={2} gap={2}>
+                            <Box minW="0">
+                              <Badge colorScheme="red" mb={1}>Tienda de repuestos</Badge>
+                              <Heading size="md" color="secondary.800" noOfLines={2}>
+                                {tienda.nombre}
+                              </Heading>
+                            </Box>
+                            <Badge colorScheme="purple" flexShrink={0}>
+                              {tienda.totalProductos} productos
+                            </Badge>
+                          </Flex>
+
+                          <Flex align="center" color="secondary.600" mb={1} fontSize="sm">
+                            <FaLocationDot style={{ marginRight: '8px', flexShrink: 0 }} />
+                            <Text>{tienda.direccion}</Text>
+                          </Flex>
+
+                          {tienda.telefono && (
+                            <Flex align="center" color="secondary.600" mb={1} fontSize="sm">
+                              <FaPhone style={{ marginRight: '8px', flexShrink: 0 }} />
+                              <Text>{tienda.telefono}</Text>
+                            </Flex>
+                          )}
+
+                          {tienda.horario && (
+                            <Flex align="center" color="secondary.600" mb={4} fontSize="sm">
+                              <FaClock style={{ marginRight: '8px', flexShrink: 0 }} />
+                              <Text>{tienda.horario}</Text>
+                            </Flex>
+                          )}
+
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            w="full"
+                            mt={tienda.horario ? 0 : 3}
+                            onClick={() => navigate(`/repuestos?tienda=${tienda.id}`)}
+                          >
+                            Ver productos
+                          </Button>
+                        </CardBody>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
+
+              {/* Lado Derecho: Mapa Grande */}
+              <Box
+                flex={{ base: 'none', lg: '2' }}
+                h={{ base: '400px', lg: '100%' }}
+                borderRadius="lg"
+                overflow="hidden"
+                boxShadow="md"
+                border="1px solid"
+                borderColor="secondary.200"
+                position="relative"
+              >
+                <MapContainer
+                  center={centroMapa ? [centroMapa.latitud, centroMapa.longitud] : CENTRO_POR_DEFECTO}
+                  zoom={12}
                   style={{ height: '100%', width: '100%' }}
                 >
                   <TileLayer
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   />
-                  {talleres.map(taller => (
-                    <Marker key={taller.id} position={[taller.latitud, taller.longitud]}>
+
+                  {/* Marcadores azules: talleres mecanicos */}
+                  {talleresVisibles.map((taller) => (
+                    <Marker
+                      key={`marcador-taller-${taller.id}`}
+                      position={[taller.latitud, taller.longitud]}
+                      icon={ICONO_TALLER}
+                    >
                       <Popup>
-                        <strong>{taller.nombre_taller}</strong><br />
+                        <strong>{taller.nombre}</strong>
+                        <br />
                         {taller.direccion}
+                        {taller.telefono && (
+                          <>
+                            <br />
+                            Tel: {taller.telefono}
+                          </>
+                        )}
+                        {taller.horario && (
+                          <>
+                            <br />
+                            Horario: {taller.horario}
+                          </>
+                        )}
+                        <br />
+                        <a href={`mailto:${taller.correo}?subject=Consulta%20desde%20AutoCare`}>
+                          Ver detalles
+                        </a>
+                      </Popup>
+                    </Marker>
+                  ))}
+
+                  {/* Marcadores rojos: tiendas de repuestos */}
+                  {tiendasVisibles.map((tienda) => (
+                    <Marker
+                      key={`marcador-tienda-${tienda.id}`}
+                      position={[tienda.latitud, tienda.longitud]}
+                      icon={ICONO_TIENDA}
+                    >
+                      <Popup>
+                        <strong>{tienda.nombre}</strong>
+                        <br />
+                        {tienda.direccion}
+                        {tienda.telefono && (
+                          <>
+                            <br />
+                            Tel: {tienda.telefono}
+                          </>
+                        )}
+                        {tienda.horario && (
+                          <>
+                            <br />
+                            Horario: {tienda.horario}
+                          </>
+                        )}
+                        <br />
+                        <Button
+                          size="xs"
+                          variant="primary"
+                          mt={2}
+                          onClick={() => navigate(`/repuestos?tienda=${tienda.id}`)}
+                        >
+                          Ver productos
+                        </Button>
                       </Popup>
                     </Marker>
                   ))}
                 </MapContainer>
-              ) : (
-                <Flex h="100%" bg="gray.100" justify="center" align="center">
-                  <Text color="gray.500">No hay ubicaciones para mostrar.</Text>
-                </Flex>
-              )}
-            </Box>
-          </Flex>
+
+                <LeyendaMapa />
+              </Box>
+            </Flex>
+          </>
         )}
       </Box>
     </Layout>

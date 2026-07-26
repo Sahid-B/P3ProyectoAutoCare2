@@ -29,7 +29,7 @@ function Footer() {
       borderTop="1px solid"
       borderColor="secondary.800"
     >
-      <Container maxW="1200px" py={{ base: 10, md: 14 }} px={{ base: 6, md: 8 }}>
+      <Container maxW="100%" py={{ base: 10, md: 14 }} px={{ base: 6, md: 8 }}>
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={8} mb={10}>
           {/* Columna 1: Marca e Identidad */}
           <Stack spacing={4}>

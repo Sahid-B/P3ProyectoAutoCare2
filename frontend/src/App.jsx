@@ -1,11 +1,15 @@
 import AppRouter from './router/app-router.jsx';
 import { AuthProvider } from './context/auth-context.jsx';
+import { CarritoProvider } from './context/carrito-context.jsx';
 
-// Componente raiz de AutoCare: monta el proveedor de autenticacion y el enrutador.
+// Componente raiz de AutoCare: monta los proveedores de autenticacion y de
+// carrito de repuestos, y el enrutador.
 function App() {
   return (
     <AuthProvider>
-      <AppRouter />
+      <CarritoProvider>
+        <AppRouter />
+      </CarritoProvider>
     </AuthProvider>
   );
 }

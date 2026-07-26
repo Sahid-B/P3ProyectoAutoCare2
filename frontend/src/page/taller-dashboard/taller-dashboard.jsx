@@ -16,55 +16,91 @@ function TallerDashboard() {
           Este es el panel de control para tu taller mecánico.
         </Text>
 
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
+        <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} spacing={4} mb={8}>
           <Card variant="outline" borderColor="secondary.200">
-            <CardBody>
+            <CardBody p={4}>
               <Stat>
-                <StatLabel color="secondary.500" display="flex" alignItems="center">
-                  <Icon as={FaStar} mr={2} color="yellow.400" />
+                <StatLabel 
+                  color="secondary.500" 
+                  display="flex" 
+                  alignItems="center"
+                  whiteSpace="normal"
+                  lineHeight="shorter"
+                  mb={1}
+                >
+                  <Icon as={FaStar} mr={2} color="yellow.400" flexShrink={0} />
                   Calificación Promedio
                 </StatLabel>
-                <StatNumber color="secondary.800">5.0</StatNumber>
-                <StatHelpText>Basado en 0 reseñas</StatHelpText>
+                <StatNumber color="secondary.800" fontSize={['xl', '2xl']} whiteSpace="nowrap">
+                  5.0
+                </StatNumber>
+                <StatHelpText fontSize="xs" mb={0}>Basado en 0 reseñas</StatHelpText>
               </Stat>
             </CardBody>
           </Card>
 
           <Card variant="outline" borderColor="secondary.200">
-            <CardBody>
+            <CardBody p={4}>
               <Stat>
-                <StatLabel color="secondary.500" display="flex" alignItems="center">
-                  <Icon as={FaEye} mr={2} color="blue.400" />
+                <StatLabel 
+                  color="secondary.500" 
+                  display="flex" 
+                  alignItems="center"
+                  whiteSpace="normal"
+                  lineHeight="shorter"
+                  mb={1}
+                >
+                  <Icon as={FaEye} mr={2} color="blue.400" flexShrink={0} />
                   Vistas de Perfil
                 </StatLabel>
-                <StatNumber color="secondary.800">24</StatNumber>
-                <StatHelpText>En los últimos 30 días</StatHelpText>
+                <StatNumber color="secondary.800" fontSize={['xl', '2xl']} whiteSpace="nowrap">
+                  24
+                </StatNumber>
+                <StatHelpText fontSize="xs" mb={0}>En los últimos 30 días</StatHelpText>
               </Stat>
             </CardBody>
           </Card>
 
           <Card variant="outline" borderColor="secondary.200">
-            <CardBody>
+            <CardBody p={4}>
               <Stat>
-                <StatLabel color="secondary.500" display="flex" alignItems="center">
-                  <Icon as={FaUsers} mr={2} color="green.400" />
+                <StatLabel 
+                  color="secondary.500" 
+                  display="flex" 
+                  alignItems="center"
+                  whiteSpace="normal"
+                  lineHeight="shorter"
+                  mb={1}
+                >
+                  <Icon as={FaUsers} mr={2} color="green.400" flexShrink={0} />
                   Clientes Potenciales
                 </StatLabel>
-                <StatNumber color="secondary.800">5</StatNumber>
-                <StatHelpText>Contactos por correo</StatHelpText>
+                <StatNumber color="secondary.800" fontSize={['xl', '2xl']} whiteSpace="nowrap">
+                  5
+                </StatNumber>
+                <StatHelpText fontSize="xs" mb={0}>Contactos por correo</StatHelpText>
               </Stat>
             </CardBody>
           </Card>
 
           <Card variant="outline" borderColor="secondary.200">
-            <CardBody>
+            <CardBody p={4}>
               <Stat>
-                <StatLabel color="secondary.500" display="flex" alignItems="center">
-                  <Icon as={FaCalendarCheck} mr={2} color="purple.400" />
+                <StatLabel 
+                  color="secondary.500" 
+                  display="flex" 
+                  alignItems="center"
+                  whiteSpace="normal"
+                  lineHeight="shorter"
+                  mb={1}
+                >
+                  <Icon as={FaCalendarCheck} mr={2} color="purple.400" flexShrink={0} />
                   Citas Agendadas
                 </StatLabel>
-                <StatNumber color="secondary.800">0</StatNumber>
-                <StatHelpText>Próximamente disponible</StatHelpText>
+                <StatNumber color="secondary.800" fontSize={['xl', '2xl']} whiteSpace="nowrap">
+                  0
+                </StatNumber>
+                <StatHelpText fontSize="xs" mb={0}>Próximamente disponible</StatHelpText>
               </Stat>
             </CardBody>
           </Card>

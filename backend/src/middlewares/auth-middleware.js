@@ -42,4 +42,33 @@ function verificarRolAdmin(req, res, next) {
   next();
 }
 
-module.exports = { verificarToken, verificarRolAdmin, JWT_SECRET };
+/**
+ * Genera un middleware que solo deja pasar a los roles indicados.
+ * Debe ejecutarse DESPUES de verificarToken.
+ * Ejemplo: router.post('/', verificarToken, verificarRoles('vendedor_repuestos'), crear)
+ */
+function verificarRoles(...rolesPermitidos) {
+  return function (req, res, next) {
+    if (!req.usuario || !rolesPermitidos.includes(req.usuario.rol)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. No tienes permisos para esta operacion.',
+      });
+    }
+    next();
+  };
+}
+
+/**
+ * Middleware para verificar si el usuario tiene rol de vendedor de repuestos.
+ * Debe ejecutarse DESPUES de verificarToken.
+ */
+const verificarRolVendedor = verificarRoles('vendedor_repuestos');
+
+module.exports = {
+  verificarToken,
+  verificarRolAdmin,
+  verificarRoles,
+  verificarRolVendedor,
+  JWT_SECRET,
+};

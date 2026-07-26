@@ -27,3 +27,16 @@ export { default as AdminDashboard } from './admin-dashboard/admin-dashboard.jsx
 export { default as TallerDashboard } from './taller-dashboard/taller-dashboard.jsx';
 export { default as MiTaller } from './mi-taller/mi-taller.jsx';
 export { default as SolicitudesTaller } from './solicitudes-taller/solicitudes-taller.jsx';
+
+// Modulo de repuestos (rol vendedor_repuestos y catalogo del cliente)
+export { default as VendedorDashboard } from './vendedor-dashboard/index.jsx';
+export { default as MiTienda } from './mi-tienda/index.jsx';
+export { default as MisProductos } from './mis-productos/index.jsx';
+export { default as NuevoProducto } from './nuevo-producto/index.jsx';
+export { default as EditarProducto } from './editar-producto/index.jsx';
+export { default as PedidosVendedor } from './pedidos-vendedor/index.jsx';
+export { default as DetallePedido } from './detalle-pedido/index.jsx';
+export { default as Repuestos } from './repuestos/index.jsx';
+export { default as DetalleRepuesto } from './detalle-repuesto/index.jsx';
+export { default as Carrito } from './carrito/index.jsx';
+export { default as MisPedidos } from './mis-pedidos/index.jsx';

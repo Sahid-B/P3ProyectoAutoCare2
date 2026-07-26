@@ -1,5 +1,5 @@
 import { NavLink as RouterNavLink } from 'react-router-dom';
-import { Box, VStack, Link, Text, HStack, Icon, Divider } from '@chakra-ui/react';
+import { Box, VStack, Link, Text, HStack, Icon, Divider, Badge } from '@chakra-ui/react';
 import {
   FaGaugeHigh,
   FaCar,
@@ -11,15 +11,25 @@ import {
   FaBagShopping,
   FaTag,
   FaMapLocationDot,
+  FaGear,
+  FaCartShopping,
+  FaReceipt,
+  FaStore,
+  FaBoxesStacked,
+  FaClipboardList,
 } from 'react-icons/fa6';
 import { useAuth } from '../../context/auth-context.jsx';
+import { useCarrito } from '../../context/carrito-context.jsx';
 
 const enlacesUsuario = [
   { ruta: '/dashboard', texto: 'Dashboard', icono: FaGaugeHigh, exacto: true },
   { ruta: '/vehiculos', texto: 'Vehiculos', icono: FaCar, exacto: false },
   { ruta: '/comprar', texto: 'Comprar', icono: FaBagShopping, exacto: true },
   { ruta: '/vender', texto: 'Vender', icono: FaTag, exacto: true },
-  { ruta: '/talleres', texto: 'Talleres', icono: FaMapLocationDot, exacto: true },
+  { ruta: '/repuestos', texto: 'Repuestos', icono: FaGear, exacto: false },
+  { ruta: '/carrito', texto: 'Carrito', icono: FaCartShopping, exacto: true, conContador: true },
+  { ruta: '/mis-pedidos', texto: 'Mis pedidos', icono: FaReceipt, exacto: true },
+  { ruta: '/talleres', texto: 'Talleres y tiendas', icono: FaMapLocationDot, exacto: true },
   { ruta: '/mantenimientos', texto: 'Mantenimientos', icono: FaWrench, exacto: true },
   { ruta: '/historial', texto: 'Historial', icono: FaFolderOpen, exacto: true },
   { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
@@ -33,10 +43,31 @@ const enlacesTaller = [
   { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
 ];
 
+const enlacesVendedor = [
+  { ruta: '/vendedor-dashboard', texto: 'Dashboard', icono: FaGaugeHigh, exacto: true },
+  { ruta: '/mi-tienda', texto: 'Mi tienda', icono: FaStore, exacto: true },
+  { ruta: '/mis-productos', texto: 'Mis productos', icono: FaBoxesStacked, exacto: false },
+  { ruta: '/pedidos', texto: 'Pedidos', icono: FaClipboardList, exacto: true },
+  { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
+];
+
+const enlacesPorRol = {
+  taller: enlacesTaller,
+  vendedor_repuestos: enlacesVendedor,
+};
+
+// El administrador no compra: ve el catalogo pero no el carrito ni sus pedidos.
+const rutasSoloCliente = ['/carrito', '/mis-pedidos'];
+
 function Sidebar() {
   const { usuario } = useAuth();
-  
-  const enlacesRender = usuario?.rol === 'taller' ? enlacesTaller : enlacesUsuario;
+  const { totalUnidades } = useCarrito();
+
+  const enlacesBase = enlacesPorRol[usuario?.rol] || enlacesUsuario;
+  const enlacesRender =
+    usuario?.rol === 'admin'
+      ? enlacesBase.filter((enlace) => !rutasSoloCliente.includes(enlace.ruta))
+      : enlacesBase;
 
   return (
     <Box
@@ -79,6 +110,11 @@ function Sidebar() {
             <HStack spacing={3}>
               <Icon as={enlace.icono} boxSize={4} />
               <Box as="span">{enlace.texto}</Box>
+              {enlace.conContador && totalUnidades > 0 && (
+                <Badge colorScheme="brand" borderRadius="full" px={2} fontSize="xs">
+                  {totalUnidades}
+                </Badge>
+              )}
             </HStack>
           </Link>
         ))}
@@ -127,7 +163,7 @@ function Sidebar() {
         fontSize="xs"
         color="secondary.500"
       >
-        AutoCare v1.0.0 — Modulos de Vehiculos y Mantenimientos activos.
+        AutoCare v1.0.0 — Modulos de Vehiculos, Mantenimientos y Repuestos activos.
       </Text>
     </Box>
   );

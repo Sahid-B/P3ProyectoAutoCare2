@@ -6,8 +6,13 @@ const { OAuth2Client } = require('google-auth-library');
 const { pool } = require('../config/database');
 const { enviarCodigoOTP, smtpConfigurado } = require('../services/email-service');
 const { JWT_SECRET, JWT_EXPIRES_IN } = require('../config/auth-config');
+const { crearTienda, validarDatosTienda } = require('../services/vendedores-service');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Roles que un visitante puede elegir en el formulario de registro.
+// El rol 'admin' nunca se puede solicitar desde el registro publico.
+const ROLES_REGISTRABLES = ['taller', 'vendedor_repuestos'];
 
 // Cliente de Google OAuth 2.0. El frontend (Google Identity Services) entrega un
 // ID token que aqui se verifica (firma, aud, iss, exp) con la libreria oficial.
@@ -106,7 +111,7 @@ async function registrar(req, res) {
 
     try {
       await client.query('BEGIN');
-      const rolSeleccionado = req.body.rol === 'taller' ? 'taller' : 'usuario';
+      const rolSeleccionado = ROLES_REGISTRABLES.includes(req.body.rol) ? req.body.rol : 'usuario';
       const nuevoUsuario = await client.query(
         `INSERT INTO users (nombre, apellido, correo, password_hash, email_verified, rol)
          VALUES ($1, $2, $3, $4, FALSE, $5)
@@ -117,24 +122,48 @@ async function registrar(req, res) {
       usuario = nuevoUsuario.rows[0];
 
       if (rolSeleccionado === 'taller' && req.body.taller_datos) {
-        const { nombre_taller, direccion, latitud, longitud } = req.body.taller_datos;
+        const { nombre_taller, direccion, telefono, horario, latitud, longitud } = req.body.taller_datos;
         if (!nombre_taller || !direccion || latitud === undefined || longitud === undefined) {
           throw new Error('Faltan datos del taller.');
         }
         await client.query(
-          `INSERT INTO talleres (usuario_id, nombre_taller, direccion, latitud, longitud)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [usuario.id, nombre_taller.trim(), direccion.trim(), latitud, longitud]
+          `INSERT INTO talleres (usuario_id, nombre_taller, direccion, telefono, horario, latitud, longitud)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            usuario.id,
+            nombre_taller.trim(),
+            direccion.trim(),
+            telefono?.trim() || null,
+            horario?.trim() || null,
+            latitud,
+            longitud,
+          ]
         );
+      }
+
+      // Tienda de repuestos: los datos del local son obligatorios en este rol.
+      if (rolSeleccionado === 'vendedor_repuestos') {
+        const datosTienda = req.body.tienda_datos;
+        if (!datosTienda) {
+          throw new Error('Faltan datos de la tienda.');
+        }
+
+        const mensajeTienda = validarDatosTienda(datosTienda);
+        if (mensajeTienda) {
+          throw new Error(mensajeTienda);
+        }
+
+        await crearTienda(client, usuario.id, datosTienda);
       }
 
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
       console.error('[auth-controller] Error en la transaccion de registro:', e);
+      const esErrorDeDatos = /taller|tienda|ubicacion|local|direccion|latitud|longitud/i.test(e.message || '');
       return res.status(400).json({
         success: false,
-        message: e.message === 'Faltan datos del taller.' ? e.message : 'Error al registrar el usuario.',
+        message: esErrorDeDatos ? e.message : 'Error al registrar el usuario.',
       });
     } finally {
       client.release();

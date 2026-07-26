@@ -332,11 +332,11 @@ function Dashboard() {
           </HStack>
         </Flex>
       ) : (
-        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={6} mb={8}>
+        <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={4} mb={8}>
           {tarjetasIndicadores.map((indicador) => (
             <Box
               key={indicador.titulo}
-              p={5}
+              p={4}
               bg="white"
               borderWidth="1px"
               borderColor="secondary.200"
@@ -344,7 +344,7 @@ function Dashboard() {
               boxShadow="sm"
             >
               <Flex align="center" justify="space-between" mb={2}>
-                <Flex align="center" justify="center" boxSize="42px" bg={indicador.bgIcono} borderRadius="md">
+                <Flex align="center" justify="center" boxSize="38px" bg={indicador.bgIcono} borderRadius="md">
                   <Icon as={indicador.icono} boxSize={5} color={indicador.colorIcono} />
                 </Flex>
                 <Badge colorScheme="success" fontSize="0.65rem">
@@ -352,9 +352,22 @@ function Dashboard() {
                 </Badge>
               </Flex>
               <Stat>
-                <StatLabel color="secondary.500">{indicador.titulo}</StatLabel>
-                <StatNumber color="brand.800">{indicador.valor}</StatNumber>
-                <StatHelpText color="secondary.500" mb={0}>
+                <StatLabel 
+                  color="secondary.500"
+                  whiteSpace="normal"
+                  lineHeight="shorter"
+                  mb={1}
+                >
+                  {indicador.titulo}
+                </StatLabel>
+                <StatNumber 
+                  color="brand.800"
+                  fontSize={['xl', '2xl']}
+                  whiteSpace="nowrap"
+                >
+                  {indicador.valor}
+                </StatNumber>
+                <StatHelpText color="secondary.500" mb={0} fontSize="xs">
                   {indicador.detalle}
                 </StatHelpText>
               </Stat>

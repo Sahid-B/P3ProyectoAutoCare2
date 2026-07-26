@@ -2,10 +2,13 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'autocare-db';
-const DB_VERSION = 2;
+// Version 3: se agrega el almacen de productos para consultar el catalogo de
+// repuestos sin conexion. Los almacenes anteriores no se tocan.
+const DB_VERSION = 3;
 const STORE_VEHICLES = 'vehicles';
 const STORE_MAINTENANCES = 'maintenances';
 const STORE_PENDING = 'pending_operations';
+const STORE_PRODUCTS = 'products';
 
 let dbPromise = null;
 
@@ -22,6 +25,9 @@ export function initDatabase() {
         }
         if (!db.objectStoreNames.contains(STORE_MAINTENANCES)) {
           db.createObjectStore(STORE_MAINTENANCES, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORE_PRODUCTS)) {
+          db.createObjectStore(STORE_PRODUCTS, { keyPath: 'id' });
         }
       },
     });
@@ -103,6 +109,35 @@ export async function deleteMaintenance(id) {
   return db.delete(STORE_MAINTENANCES, Number(id));
 }
 
+// --- Catalogo de repuestos ---
+//
+// Solo se guarda una copia de lectura del catalogo para poder consultarlo sin
+// conexion. Las compras nunca se confirman offline: el stock y el pago se
+// validan siempre contra el backend.
+
+/** Reemplaza la copia local del catalogo de repuestos. */
+export async function saveProducts(products = []) {
+  const db = await initDatabase();
+  const tx = db.transaction(STORE_PRODUCTS, 'readwrite');
+  await tx.store.clear();
+  for (const producto of products) {
+    await tx.store.put(producto);
+  }
+  await tx.done;
+}
+
+/** Devuelve el catalogo guardado localmente. */
+export async function getProducts() {
+  const db = await initDatabase();
+  return db.getAll(STORE_PRODUCTS);
+}
+
+/** Devuelve un producto del catalogo local por id. */
+export async function getProduct(id) {
+  const db = await initDatabase();
+  return db.get(STORE_PRODUCTS, Number(id));
+}
+
 // --- Cola de operaciones pendientes ---
 
 /** Agrega una operacion pendiente de sincronizar. */
@@ -141,6 +176,9 @@ export default {
   getMaintenance,
   saveMaintenance,
   deleteMaintenance,
+  saveProducts,
+  getProducts,
+  getProduct,
   addPendingOperation,
   getPendingOperations,
   removePendingOperation,
