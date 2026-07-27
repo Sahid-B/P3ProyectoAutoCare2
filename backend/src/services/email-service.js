@@ -1,5 +1,7 @@
 const nodemailer = require('nodemailer');
-
+const dns = require('dns');
+// Forzar IPv4 para evitar problemas de ruteo IPv6 (ENETUNREACH) en Render
+dns.setDefaultResultOrder('ipv4first');
 // Configuracion SMTP leida EXCLUSIVAMENTE de variables de entorno.
 // No hay credenciales en el codigo. Si SMTP no esta configurado, el envio de
 // correo se desactiva de forma controlada (no bloquea el arranque del backend).
