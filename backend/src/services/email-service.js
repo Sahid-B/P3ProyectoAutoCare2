@@ -19,13 +19,21 @@ let transporter = null;
 function obtenerTransporter() {
   if (!smtpConfigurado()) return null;
   if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE, // true para 465, false para 587 (STARTTLS)
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-      // Se mantiene la validacion TLS por defecto (no se desactiva).
-    });
+    const transportConfig = {
+      auth: { user: SMTP_USER, pass: SMTP_PASS }
+    };
+    
+    // Render tiene problemas de ruteo IPv6 con smtp.gmail.com.
+    // Usar 'service: gmail' hace que nodemailer gestione mejor la conexion.
+    if (SMTP_HOST === 'smtp.gmail.com') {
+      transportConfig.service = 'gmail';
+    } else {
+      transportConfig.host = SMTP_HOST;
+      transportConfig.port = SMTP_PORT;
+      transportConfig.secure = SMTP_SECURE;
+    }
+
+    transporter = nodemailer.createTransport(transportConfig);
   }
   return transporter;
 }
