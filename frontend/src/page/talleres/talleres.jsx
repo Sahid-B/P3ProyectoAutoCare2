@@ -12,17 +12,32 @@ import {
   CardBody,
   Stack,
   Button,
+  IconButton,
   Badge,
   Checkbox,
   HStack,
   Icon,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Input,
+  useDisclosure,
+  useToast,
 } from '@chakra-ui/react';
-import { FaLocationDot, FaPhone, FaClock, FaWrench, FaStore } from 'react-icons/fa6';
+import { FaLocationDot, FaPhone, FaClock, FaWrench, FaStore, FaPenToSquare, FaTrash } from 'react-icons/fa6';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import Layout from '../../components/layout/index.jsx';
 import LeyendaMapa from '../../components/leyenda-mapa/index.jsx';
+import { useAuth } from '../../context/auth-context.jsx';
 import { obtenerUbicacionesMapa } from '../../services/repuestos-service.js';
+import { peticion } from '../../services/api-service.js';
 import { ICONO_TALLER, ICONO_TIENDA } from '../../utils/mapa-iconos.js';
 
 // Fix Leaflet icons
@@ -35,10 +50,13 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Centro por defecto del mapa cuando todavia no hay ubicaciones (Guayaquil).
 const CENTRO_POR_DEFECTO = [-2.1894, -79.8891];
 
 function Talleres() {
+  const { usuario } = useAuth();
+  const esAdmin = usuario?.rol === 'admin';
+  const toast = useToast();
+
   const [talleres, setTalleres] = useState([]);
   const [tiendas, setTiendas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -47,29 +65,127 @@ function Talleres() {
   const [verTiendas, setVerTiendas] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    let activo = true;
+  // Modal Admin Editar Taller / Tienda
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [tipoEdit, setTipoEdit] = useState('taller'); // 'taller' o 'tienda'
+  const [editId, setEditId] = useState(null);
+  const [formEst, setFormEst] = useState({
+    nombre: '',
+    direccion: '',
+    telefono: '',
+    horario: '',
+    latitud: -0.25,
+    longitud: -79.15,
+  });
+  const [guardando, setGuardando] = useState(false);
 
-    async function cargarUbicaciones() {
-      try {
-        setCargando(true);
-        const datos = await obtenerUbicacionesMapa();
-
-        if (!activo) return;
-        setTalleres(datos.talleres || []);
-        setTiendas(datos.tiendas || []);
-      } catch (err) {
-        if (activo) setError(err.message || 'No se pudo conectar con el servidor.');
-      } finally {
-        if (activo) setCargando(false);
-      }
+  const cargarUbicaciones = async () => {
+    try {
+      setCargando(true);
+      const datos = await obtenerUbicacionesMapa();
+      setTalleres(datos.talleres || []);
+      setTiendas(datos.tiendas || []);
+    } catch (err) {
+      setError(err.message || 'No se pudo conectar con el servidor.');
+    } finally {
+      setCargando(false);
     }
+  };
 
+  useEffect(() => {
     cargarUbicaciones();
-    return () => {
-      activo = false;
-    };
   }, []);
+
+  // Admin Handlers
+  const abrirEditarTaller = (taller) => {
+    setTipoEdit('taller');
+    setEditId(taller.id);
+    setFormEst({
+      nombre: taller.nombre || '',
+      direccion: taller.direccion || '',
+      telefono: taller.telefono || '',
+      horario: taller.horario || '',
+      latitud: taller.latitud || -0.25,
+      longitud: taller.longitud || -79.15,
+    });
+    onOpen();
+  };
+
+  const abrirEditarTienda = (tienda) => {
+    setTipoEdit('tienda');
+    setEditId(tienda.id);
+    setFormEst({
+      nombre: tienda.nombre || '',
+      direccion: tienda.direccion || '',
+      telefono: tienda.telefono || '',
+      horario: tienda.horario || '',
+      latitud: tienda.latitud || -0.25,
+      longitud: tienda.longitud || -79.15,
+    });
+    onOpen();
+  };
+
+  const manejarGuardarEstablecimiento = async (e) => {
+    e.preventDefault();
+    setGuardando(true);
+    try {
+      if (tipoEdit === 'taller') {
+        await peticion(`/talleres/${editId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            nombre_taller: formEst.nombre,
+            direccion: formEst.direccion,
+            telefono: formEst.telefono,
+            horario: formEst.horario,
+            latitud: formEst.latitud,
+            longitud: formEst.longitud,
+          }),
+        });
+        toast({ title: 'Taller actualizado con éxito', status: 'success', duration: 3000 });
+      } else {
+        await peticion(`/vendedores/${editId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            nombre_local: formEst.nombre,
+            direccion: formEst.direccion,
+            telefono: formEst.telefono,
+            horario: formEst.horario,
+            latitud: formEst.latitud,
+            longitud: formEst.longitud,
+          }),
+        });
+        toast({ title: 'Tienda actualizada con éxito', status: 'success', duration: 3000 });
+      }
+      onClose();
+      cargarUbicaciones();
+    } catch (err) {
+      toast({ title: 'Error', description: err.message, status: 'error', duration: 4000 });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const manejarEliminarTaller = async (id) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este taller?')) return;
+    try {
+      await peticion(`/talleres/${id}`, { method: 'DELETE' });
+      toast({ title: 'Taller eliminado', status: 'info', duration: 3000 });
+      cargarUbicaciones();
+    } catch (err) {
+      toast({ title: 'Error', description: err.message, status: 'error', duration: 4000 });
+    }
+  };
+
+  const manejarEliminarTienda = async (id) => {
+    if (!window.confirm('¿Seguro que deseas eliminar esta tienda de repuestos?')) return;
+    try {
+      await peticion(`/vendedores/${id}`, { method: 'DELETE' });
+      toast({ title: 'Tienda eliminada', status: 'info', duration: 3000 });
+      cargarUbicaciones();
+    } catch (err) {
+      toast({ title: 'Error', description: err.message, status: 'error', duration: 4000 });
+    }
+  };
 
   const talleresVisibles = verTalleres ? talleres : [];
   const tiendasVisibles = verTiendas ? tiendas : [];
@@ -151,9 +267,29 @@ function Talleres() {
                                 {taller.nombre}
                               </Heading>
                             </Box>
-                            <Badge colorScheme="green" flexShrink={0}>
-                              {Number(taller.calificacion || 5).toFixed(1)}
-                            </Badge>
+                            <HStack spacing={2}>
+                              <Badge colorScheme="green" flexShrink={0}>
+                                {Number(taller.calificacion || 5).toFixed(1)}
+                              </Badge>
+                              {esAdmin && (
+                                <>
+                                  <IconButton
+                                    aria-label="Editar taller"
+                                    icon={<FaPenToSquare />}
+                                    size="xs"
+                                    colorScheme="blue"
+                                    onClick={() => abrirEditarTaller(taller)}
+                                  />
+                                  <IconButton
+                                    aria-label="Eliminar taller"
+                                    icon={<FaTrash />}
+                                    size="xs"
+                                    colorScheme="red"
+                                    onClick={() => manejarEliminarTaller(taller.id)}
+                                  />
+                                </>
+                              )}
+                            </HStack>
                           </Flex>
 
                           <Flex align="center" color="secondary.600" mb={1} fontSize="sm">
@@ -206,9 +342,29 @@ function Talleres() {
                                 {tienda.nombre}
                               </Heading>
                             </Box>
-                            <Badge colorScheme="purple" flexShrink={0}>
-                              {tienda.totalProductos} productos
-                            </Badge>
+                            <HStack spacing={2}>
+                              <Badge colorScheme="purple" flexShrink={0}>
+                                {tienda.totalProductos} productos
+                              </Badge>
+                              {esAdmin && (
+                                <>
+                                  <IconButton
+                                    aria-label="Editar tienda"
+                                    icon={<FaPenToSquare />}
+                                    size="xs"
+                                    colorScheme="blue"
+                                    onClick={() => abrirEditarTienda(tienda)}
+                                  />
+                                  <IconButton
+                                    aria-label="Eliminar tienda"
+                                    icon={<FaTrash />}
+                                    size="xs"
+                                    colorScheme="red"
+                                    onClick={() => manejarEliminarTienda(tienda.id)}
+                                  />
+                                </>
+                              )}
+                            </HStack>
                           </Flex>
 
                           <Flex align="center" color="secondary.600" mb={1} fontSize="sm">
@@ -341,6 +497,45 @@ function Talleres() {
           </>
         )}
       </Box>
+
+      {/* Modal Editar Taller / Tienda (Admin) */}
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalOverlay />
+        <ModalContent as="form" onSubmit={manejarGuardarEstablecimiento}>
+          <ModalHeader>{tipoEdit === 'taller' ? 'Editar Taller Mecánico' : 'Editar Tienda de Repuestos'}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Stack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel fontSize="sm">Nombre del Establecimiento</FormLabel>
+                <Input value={formEst.nombre} onChange={(e) => setFormEst({ ...formEst, nombre: e.target.value })} />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel fontSize="sm">Dirección</FormLabel>
+                <Input value={formEst.direccion} onChange={(e) => setFormEst({ ...formEst, direccion: e.target.value })} />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Teléfono</FormLabel>
+                <Input value={formEst.telefono} onChange={(e) => setFormEst({ ...formEst, telefono: e.target.value })} />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Horario</FormLabel>
+                <Input value={formEst.horario} onChange={(e) => setFormEst({ ...formEst, horario: e.target.value })} placeholder="Ej: Lun-Vie 8:30-18:30" />
+              </FormControl>
+            </Stack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose}>Cancelar</Button>
+            <Button colorScheme="brand" type="submit" isLoading={guardando}>
+              Guardar Cambios
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Layout>
   );
 }

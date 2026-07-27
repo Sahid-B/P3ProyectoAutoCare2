@@ -1,35 +1,40 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { useAuth } from './auth-context.jsx';
 
 // Carrito de repuestos del cliente.
 // Se guarda en localStorage para que sobreviva a una recarga o a una perdida de
 // conexion. Los precios se validan de nuevo en el backend al crear el pedido:
 // lo que hay aqui es solo una copia para mostrar el resumen.
 
-const CARRITO_KEY = 'autocare_carrito';
-
 const CarritoContext = createContext(null);
 
-function leerCarritoGuardado() {
-  try {
-    const guardado = localStorage.getItem(CARRITO_KEY);
-    const items = guardado ? JSON.parse(guardado) : [];
-    return Array.isArray(items) ? items : [];
-  } catch (error) {
-    console.warn('[carrito-context] No se pudo leer el carrito guardado:', error.message);
-    return [];
-  }
-}
-
 export function CarritoProvider({ children }) {
-  const [items, setItems] = useState(leerCarritoGuardado);
+  const { usuario } = useAuth();
+  const [items, setItems] = useState([]);
 
+  // Generamos una clave única para cada usuario (o 'guest' si no está logueado)
+  const carritoKey = usuario ? `autocare_carrito_${usuario.id}` : 'autocare_carrito_guest';
+
+  // Cargar el carrito específico del usuario cuando la clave cambia
   useEffect(() => {
     try {
-      localStorage.setItem(CARRITO_KEY, JSON.stringify(items));
+      const guardado = localStorage.getItem(carritoKey);
+      const parseado = guardado ? JSON.parse(guardado) : [];
+      setItems(Array.isArray(parseado) ? parseado : []);
+    } catch (error) {
+      console.warn('[carrito-context] No se pudo leer el carrito guardado:', error.message);
+      setItems([]);
+    }
+  }, [carritoKey]);
+
+  // Guardar cambios en el carrito específico de este usuario
+  useEffect(() => {
+    try {
+      localStorage.setItem(carritoKey, JSON.stringify(items));
     } catch (error) {
       console.warn('[carrito-context] No se pudo guardar el carrito:', error.message);
     }
-  }, [items]);
+  }, [items, carritoKey]);
 
   /** Agrega un producto o suma unidades si ya estaba en el carrito. */
   const agregarProducto = useCallback((producto, cantidad = 1) => {

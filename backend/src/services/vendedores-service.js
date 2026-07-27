@@ -183,12 +183,46 @@ async function obtenerEstadisticas(vendedorId) {
   };
 }
 
+async function actualizarPorId(id, datos) {
+  const { rows } = await pool.query(
+    `UPDATE vendedores_repuestos
+     SET nombre_local = $1,
+         descripcion = $2,
+         direccion = $3,
+         latitud = $4,
+         longitud = $5,
+         telefono = $6,
+         horario = $7,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $8
+     RETURNING ${COLUMNAS}`,
+    [
+      datos.nombre_local.trim(),
+      datos.descripcion?.trim() || null,
+      datos.direccion.trim(),
+      datos.latitud,
+      datos.longitud,
+      datos.telefono?.trim() || null,
+      datos.horario?.trim() || null,
+      id,
+    ],
+  );
+  return rows[0] || null;
+}
+
+async function eliminarPorId(id) {
+  const { rowCount } = await pool.query('DELETE FROM vendedores_repuestos WHERE id = $1', [id]);
+  return rowCount > 0;
+}
+
 module.exports = {
   validarDatosTienda,
   crearTienda,
   obtenerPorUsuario,
   obtenerPorId,
   actualizarPorUsuario,
+  actualizarPorId,
+  eliminarPorId,
   listarPublicas,
   listarParaAdmin,
   cambiarEstado,

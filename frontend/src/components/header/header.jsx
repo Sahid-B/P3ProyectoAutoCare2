@@ -34,6 +34,13 @@ function Header() {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
 
+  const INICIO_POR_ROL = {
+    admin: '/admin',
+    taller: '/taller-dashboard',
+    vendedor_repuestos: '/vendedor-dashboard',
+  };
+  const rutaDashboard = usuario ? (INICIO_POR_ROL[usuario.rol] || '/dashboard') : '/dashboard';
+
   const handleCerrarSesion = async () => {
     await logout();
     onClose();
@@ -130,7 +137,7 @@ function Header() {
           )}
 
 
-          <Button as={RouterNavLink} to="/dashboard" variant="primary" size="sm">
+          <Button as={RouterNavLink} to={rutaDashboard} variant="primary" size="sm">
             Dashboard
           </Button>
 
@@ -201,7 +208,7 @@ function Header() {
 
               <Button
                 as={RouterNavLink}
-                to="/dashboard"
+                to={rutaDashboard}
                 variant="primary"
                 mt={2}
                 onClick={onClose}

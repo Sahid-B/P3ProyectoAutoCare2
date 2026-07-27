@@ -47,8 +47,43 @@ async function actualizarMiTaller(req, res) {
   }
 }
 
+async function actualizarTaller(req, res) {
+  try {
+    const id = Number(req.params.id);
+    const { nombre_taller, direccion, latitud, longitud } = req.body;
+    if (!nombre_taller || !direccion || latitud === undefined || longitud === undefined) {
+      return res.status(400).json({ success: false, message: 'Faltan datos obligatorios del taller.' });
+    }
+
+    const tallerActualizado = await talleresService.actualizarPorId(id, req.body);
+    if (!tallerActualizado) {
+      return res.status(404).json({ success: false, message: 'Taller no encontrado.' });
+    }
+    return res.json({ success: true, message: 'Taller actualizado exitosamente.', taller: tallerActualizado });
+  } catch (error) {
+    console.error('[talleres-controller] Error al actualizar taller:', error);
+    return res.status(500).json({ success: false, message: 'Error al actualizar el taller.' });
+  }
+}
+
+async function eliminarTaller(req, res) {
+  try {
+    const id = Number(req.params.id);
+    const eliminado = await talleresService.eliminarPorId(id);
+    if (!eliminado) {
+      return res.status(404).json({ success: false, message: 'Taller no encontrado.' });
+    }
+    return res.json({ success: true, message: 'Taller eliminado exitosamente.' });
+  } catch (error) {
+    console.error('[talleres-controller] Error al eliminar taller:', error);
+    return res.status(500).json({ success: false, message: 'Error al eliminar el taller.' });
+  }
+}
+
 module.exports = {
   listarTodos,
   obtenerMiTaller,
   actualizarMiTaller,
+  actualizarTaller,
+  eliminarTaller,
 };

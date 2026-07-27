@@ -103,7 +103,8 @@ function responderValidacion(res, errores) {
  */
 async function listar(req, res) {
   try {
-    const data = await vehicleService.listarPorUsuario(req.usuario.id);
+    const esAdmin = req.usuario.rol === 'admin';
+    const data = await vehicleService.listarPorUsuario(req.usuario.id, esAdmin);
     return res.json({
       success: true,
       message: 'Vehiculos obtenidos correctamente.',
@@ -126,7 +127,8 @@ async function obtener(req, res) {
   }
 
   try {
-    const vehiculo = await vehicleService.obtenerPorId(id, req.usuario.id);
+    const esAdmin = req.usuario.rol === 'admin';
+    const vehiculo = await vehicleService.obtenerPorId(id, req.usuario.id, esAdmin);
     if (!vehiculo) {
       return res.status(404).json({ success: false, message: 'Vehiculo no encontrado.' });
     }

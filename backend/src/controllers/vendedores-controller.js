@@ -128,10 +128,45 @@ async function obtenerTiendaPublica(req, res) {
   }
 }
 
+async function actualizarTienda(req, res) {
+  try {
+    const id = Number(req.params.id);
+    const mensajeError = validarDatosTienda(req.body);
+    if (mensajeError) {
+      return res.status(400).json({ success: false, message: mensajeError });
+    }
+
+    const tienda = await vendedoresService.actualizarPorId(id, req.body);
+    if (!tienda) {
+      return res.status(404).json({ success: false, message: 'Tienda no encontrada.' });
+    }
+    return res.json({ success: true, message: 'Tienda actualizada exitosamente.', tienda });
+  } catch (error) {
+    console.error('[vendedores-controller] Error al actualizar tienda:', error);
+    return res.status(500).json({ success: false, message: 'Error al actualizar la tienda.' });
+  }
+}
+
+async function eliminarTienda(req, res) {
+  try {
+    const id = Number(req.params.id);
+    const eliminado = await vendedoresService.eliminarPorId(id);
+    if (!eliminado) {
+      return res.status(404).json({ success: false, message: 'Tienda no encontrada.' });
+    }
+    return res.json({ success: true, message: 'Tienda eliminada exitosamente.' });
+  } catch (error) {
+    console.error('[vendedores-controller] Error al eliminar tienda:', error);
+    return res.status(500).json({ success: false, message: 'Error al eliminar la tienda.' });
+  }
+}
+
 module.exports = {
   obtenerMiTienda,
   guardarMiTienda,
   obtenerEstadisticas,
   listarPublicas,
   obtenerTiendaPublica,
+  actualizarTienda,
+  eliminarTienda,
 };

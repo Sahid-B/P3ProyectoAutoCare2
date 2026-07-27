@@ -60,9 +60,38 @@ async function listarParaMapa() {
   return result.rows;
 }
 
+async function actualizarPorId(id, datos) {
+  const { nombre_taller, direccion, telefono, horario, descripcion, latitud, longitud } = datos;
+  const result = await pool.query(
+    `UPDATE talleres
+     SET nombre_taller = $1, direccion = $2, telefono = $3, horario = $4, descripcion = $5,
+         latitud = $6, longitud = $7, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $8
+     RETURNING *`,
+    [
+      nombre_taller.trim(),
+      direccion.trim(),
+      telefono?.trim() || null,
+      horario?.trim() || null,
+      descripcion?.trim() || null,
+      latitud,
+      longitud,
+      id,
+    ]
+  );
+  return result.rows[0];
+}
+
+async function eliminarPorId(id) {
+  const { rowCount } = await pool.query('DELETE FROM talleres WHERE id = $1', [id]);
+  return rowCount > 0;
+}
+
 module.exports = {
   listarTodos,
   obtenerMiTaller,
   actualizarMiTaller,
+  actualizarPorId,
+  eliminarPorId,
   listarParaMapa,
 };

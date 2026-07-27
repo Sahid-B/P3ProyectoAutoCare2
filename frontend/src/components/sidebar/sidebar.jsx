@@ -17,6 +17,7 @@ import {
   FaStore,
   FaBoxesStacked,
   FaClipboardList,
+  FaCalendarDays,
 } from 'react-icons/fa6';
 import { useAuth } from '../../context/auth-context.jsx';
 import { useCarrito } from '../../context/carrito-context.jsx';
@@ -31,6 +32,7 @@ const enlacesUsuario = [
   { ruta: '/mis-pedidos', texto: 'Mis pedidos', icono: FaReceipt, exacto: true },
   { ruta: '/talleres', texto: 'Talleres y tiendas', icono: FaMapLocationDot, exacto: true },
   { ruta: '/mantenimientos', texto: 'Mantenimientos', icono: FaWrench, exacto: true },
+  { ruta: '/citas', texto: 'Mis citas', icono: FaCalendarDays, exacto: true },
   { ruta: '/historial', texto: 'Historial', icono: FaFolderOpen, exacto: true },
   { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
 ];
@@ -39,6 +41,9 @@ const enlacesTaller = [
   { ruta: '/taller-dashboard', texto: 'Dashboard Taller', icono: FaGaugeHigh, exacto: true },
   { ruta: '/mi-taller', texto: 'Mi Taller', icono: FaCar, exacto: true }, // Using FaCar or FaWrench
   { ruta: '/solicitudes', texto: 'Solicitudes', icono: FaFolderOpen, exacto: true },
+  { ruta: '/repuestos', texto: 'Catálogo Repuestos', icono: FaGear, exacto: false },
+  { ruta: '/carrito', texto: 'Carrito', icono: FaCartShopping, exacto: true, conContador: true },
+  { ruta: '/mis-pedidos', texto: 'Mis pedidos', icono: FaReceipt, exacto: true },
   { ruta: '/talleres', texto: 'Directorio', icono: FaMapLocationDot, exacto: true },
   { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
 ];
@@ -47,17 +52,31 @@ const enlacesVendedor = [
   { ruta: '/vendedor-dashboard', texto: 'Dashboard', icono: FaGaugeHigh, exacto: true },
   { ruta: '/mi-tienda', texto: 'Mi tienda', icono: FaStore, exacto: true },
   { ruta: '/mis-productos', texto: 'Mis productos', icono: FaBoxesStacked, exacto: false },
+  { ruta: '/repuestos', texto: 'Catálogo Repuestos', icono: FaGear, exacto: false },
   { ruta: '/pedidos', texto: 'Pedidos', icono: FaClipboardList, exacto: true },
   { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
 ];
 
+const enlacesAdmin = [
+  { ruta: '/admin', texto: 'Dashboard', icono: FaGaugeHigh, exacto: true },
+  { ruta: '/vehiculos', texto: 'Vehiculos', icono: FaCar, exacto: false },
+  { ruta: '/comprar', texto: 'Comprar', icono: FaBagShopping, exacto: true },
+  { ruta: '/vender', texto: 'Vender', icono: FaTag, exacto: true },
+  { ruta: '/repuestos', texto: 'Catálogo Repuestos', icono: FaGear, exacto: false },
+  { ruta: '/talleres', texto: 'Talleres y tiendas', icono: FaMapLocationDot, exacto: true },
+  { ruta: '/mantenimientos', texto: 'Mantenimientos', icono: FaWrench, exacto: true },
+  { ruta: '/historial', texto: 'Historial', icono: FaFolderOpen, exacto: true },
+  { ruta: '/perfil', texto: 'Perfil', icono: FaUser, exacto: true },
+];
+
 const enlacesPorRol = {
+  admin: enlacesAdmin,
   taller: enlacesTaller,
   vendedor_repuestos: enlacesVendedor,
 };
 
 // El administrador no compra: ve el catalogo pero no el carrito ni sus pedidos.
-const rutasSoloCliente = ['/carrito', '/mis-pedidos'];
+const rutasSoloCliente = ['/carrito', '/mis-pedidos', '/citas'];
 
 function Sidebar() {
   const { usuario } = useAuth();
@@ -118,41 +137,6 @@ function Sidebar() {
             </HStack>
           </Link>
         ))}
-
-        {usuario?.rol === 'admin' && (
-          <>
-            <Divider my={2} />
-            <Text
-              fontSize="xs"
-              fontWeight="bold"
-              letterSpacing="0.08em"
-              textTransform="uppercase"
-              color="red.400"
-              mb={2}
-              mt={1}
-            >
-              Administracion
-            </Text>
-            <Link
-              as={RouterNavLink}
-              to="/admin"
-              end={false}
-              px={3}
-              py={2}
-              borderRadius="md"
-              fontWeight="bold"
-              color="red.600"
-              bg="red.50"
-              _hover={{ bg: 'red.100', textDecoration: 'none' }}
-              _activeLink={{ bg: 'red.500', color: 'white' }}
-            >
-              <HStack spacing={3}>
-                <Icon as={FaShieldHalved} boxSize={4} />
-                <Box as="span">Panel Admin</Box>
-              </HStack>
-            </Link>
-          </>
-        )}
       </VStack>
 
       <Text

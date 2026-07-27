@@ -38,6 +38,7 @@ function metodosDisponibles() {
       id: 'paypal',
       nombre: 'PayPal (Sandbox)',
       descripcion: 'Pago mediante la cuenta de pruebas de PayPal Sandbox.',
+      clientId: PAYPAL_CLIENT_ID,
     });
   }
   if (simulacionHabilitada()) {

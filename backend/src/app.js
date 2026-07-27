@@ -12,6 +12,7 @@ const vendedoresRoutes = require('./routes/vendedores-routes');
 const productosRoutes = require('./routes/productos-routes');
 const comprasRoutes = require('./routes/compras-routes');
 const mapaRoutes = require('./routes/mapa-routes');
+const citasRoutes = require('./routes/citas-routes');
 
 // Configuracion de la aplicacion Express de AutoCare.
 const app = express();
@@ -35,6 +36,7 @@ app.use('/api/vendedores', vendedoresRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/compras', comprasRoutes);
 app.use('/api/mapa', mapaRoutes);
+app.use('/api/citas', citasRoutes);
 
 // Ruta raiz informativa
 app.get('/', (_peticion, respuesta) => {

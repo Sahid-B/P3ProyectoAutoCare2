@@ -8,25 +8,42 @@ import {
   Button,
   Checkbox,
   Flex,
+  FormControl,
+  FormLabel,
+  GridItem,
   Heading,
+  HStack,
   Icon,
   Input as ChakraInput,
   InputGroup,
   InputLeftElement,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
   Select,
   SimpleGrid,
   Skeleton,
   Text,
+  useDisclosure,
   useToast,
 } from '@chakra-ui/react';
-import { FaMagnifyingGlass, FaCartShopping, FaFilter, FaBoxOpen } from 'react-icons/fa6';
+import { FaMagnifyingGlass, FaCartShopping, FaFilter, FaBoxOpen, FaPlus } from 'react-icons/fa6';
 import Layout from '../../components/layout/index.jsx';
 import ProductoCard from '../../components/producto-card/index.jsx';
+import { useAuth } from '../../context/auth-context.jsx';
 import { useCarrito } from '../../context/carrito-context.jsx';
 import {
   obtenerCatalogo,
   obtenerCategorias,
   obtenerMarcas,
+  obtenerTiendasPublicas,
+  crearProducto,
+  actualizarProducto,
+  eliminarProducto,
 } from '../../services/repuestos-service.js';
 import { saveProducts, getProducts } from '../../services/indexeddb-service.js';
 
@@ -39,43 +56,61 @@ const FILTROS_INICIALES = {
   soloDisponibles: false,
 };
 
+const PRODUCTO_FORM_INICIAL = {
+  vendedor_id: '',
+  nombre: '',
+  descripcion: '',
+  categoria: 'motor',
+  marca: '',
+  compatibilidad: '',
+  precio: '',
+  stock: '',
+  imagen_url: '',
+  estado: 'activo',
+};
+
 function Repuestos() {
+  const { usuario } = useAuth();
+  const esAdmin = usuario?.rol === 'admin';
+
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [marcas, setMarcas] = useState([]);
+  const [tiendas, setTiendas] = useState([]);
   const [filtros, setFiltros] = useState(FILTROS_INICIALES);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [desdeCache, setDesdeCache] = useState(false);
 
+  // Modal Admin Crear/Editar Repuesto
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [editandoId, setEditandoId] = useState(null);
+  const [prodForm, setProdForm] = useState(PRODUCTO_FORM_INICIAL);
+  const [guardando, setGuardando] = useState(false);
+
   const { agregarProducto, totalUnidades } = useCarrito();
   const toast = useToast();
 
-  // Al llegar desde el mapa ("Ver productos") se filtra por esa tienda.
   const [parametrosUrl, setParametrosUrl] = useSearchParams();
   const tiendaFiltrada = parametrosUrl.get('tienda');
 
-  // Catalogos auxiliares (categorias y marcas) para los filtros.
   useEffect(() => {
     let activo = true;
 
-    Promise.all([obtenerCategorias(), obtenerMarcas()])
-      .then(([respuestaCategorias, respuestaMarcas]) => {
+    Promise.all([obtenerCategorias(), obtenerMarcas(), obtenerTiendasPublicas().catch(() => ({ data: [] }))])
+      .then(([respuestaCategorias, respuestaMarcas, respuestaTiendas]) => {
         if (!activo) return;
         setCategorias(respuestaCategorias.categorias || []);
         setMarcas(respuestaMarcas.marcas || []);
+        setTiendas(respuestaTiendas.data || []);
       })
-      .catch(() => {
-        // Sin conexion los filtros quedan vacios; el catalogo en cache sigue visible.
-      });
+      .catch(() => {});
 
     return () => {
       activo = false;
     };
   }, []);
 
-  // conSpinner=false en la carga inicial: el estado ya arranca en "cargando",
-  // asi el efecto de montaje no dispara un setState sincrono.
   const cargarCatalogo = useCallback(async (filtrosActuales, vendedorId = null, conSpinner = true) => {
     if (conSpinner) {
       setCargando(true);
@@ -97,7 +132,6 @@ function Repuestos() {
       setProductos(datos);
       setDesdeCache(false);
 
-      // Solo se guarda en cache el catalogo completo (sin filtros aplicados).
       const sinFiltros =
         !vendedorId &&
         !filtrosActuales.busqueda &&
@@ -111,9 +145,7 @@ function Repuestos() {
         saveProducts(datos).catch(() => {});
       }
     } catch (err) {
-      // Sin conexion se muestra la ultima copia guardada del catalogo.
       const guardados = await getProducts().catch(() => []);
-
       if (guardados.length > 0) {
         setProductos(guardados);
         setDesdeCache(true);
@@ -127,9 +159,6 @@ function Repuestos() {
   }, []);
 
   useEffect(() => {
-    // conSpinner=false evita el setState sincrono: el estado ya arranca cargando
-    // y el resto de actualizaciones ocurren despues del await de la peticion.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     cargarCatalogo(FILTROS_INICIALES, tiendaFiltrada, false);
   }, [cargarCatalogo, tiendaFiltrada]);
 
@@ -163,6 +192,64 @@ function Repuestos() {
     });
   };
 
+  // --- Funciones Admin ---
+  const abrirNuevoModal = () => {
+    setEditandoId(null);
+    setProdForm({
+      ...PRODUCTO_FORM_INICIAL,
+      vendedor_id: tiendas[0]?.id || '',
+    });
+    onOpen();
+  };
+
+  const abrirEditarModal = (prod) => {
+    setEditandoId(prod.id);
+    setProdForm({
+      vendedor_id: prod.vendedor_id || '',
+      nombre: prod.nombre || '',
+      descripcion: prod.descripcion || '',
+      categoria: prod.categoria || 'motor',
+      marca: prod.marca || '',
+      compatibilidad: prod.compatibilidad || '',
+      precio: prod.precio || '',
+      stock: prod.stock || '',
+      imagen_url: prod.imagen_url || '',
+      estado: prod.estado || 'activo',
+    });
+    onOpen();
+  };
+
+  const manejarGuardarRepuesto = async (e) => {
+    e.preventDefault();
+    setGuardando(true);
+    try {
+      if (editandoId) {
+        await actualizarProducto(editandoId, prodForm);
+        toast({ title: 'Repuesto actualizado', status: 'success', duration: 3000 });
+      } else {
+        await crearProducto(prodForm);
+        toast({ title: 'Repuesto creado con éxito', status: 'success', duration: 3000 });
+      }
+      onClose();
+      cargarCatalogo(filtros, tiendaFiltrada);
+    } catch (err) {
+      toast({ title: 'Error', description: err.message, status: 'error', duration: 4000 });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const manejarEliminarRepuesto = async (id) => {
+    if (!window.confirm('¿Seguro de que deseas eliminar este repuesto?')) return;
+    try {
+      await eliminarProducto(id);
+      toast({ title: 'Repuesto eliminado', status: 'info', duration: 3000 });
+      cargarCatalogo(filtros, tiendaFiltrada);
+    } catch (err) {
+      toast({ title: 'Error', description: err.message, status: 'error', duration: 4000 });
+    }
+  };
+
   return (
     <Layout conSidebar>
       <Flex justify="space-between" align="flex-start" gap={4} flexWrap="wrap" mb={6}>
@@ -175,19 +262,27 @@ function Repuestos() {
           </Text>
         </Box>
 
-        <Button
-          as={RouterLink}
-          to="/carrito"
-          variant="primary"
-          leftIcon={<FaCartShopping />}
-        >
-          Carrito
-          {totalUnidades > 0 && (
-            <Badge ml={2} bg="white" color="brand.700" borderRadius="full" px={2}>
-              {totalUnidades}
-            </Badge>
+        <HStack spacing={3}>
+          {esAdmin && (
+            <Button leftIcon={<FaPlus />} colorScheme="brand" onClick={abrirNuevoModal}>
+              Agregar Repuesto (Admin)
+            </Button>
           )}
-        </Button>
+
+          <Button
+            as={RouterLink}
+            to="/carrito"
+            variant="primary"
+            leftIcon={<FaCartShopping />}
+          >
+            Carrito
+            {totalUnidades > 0 && (
+              <Badge ml={2} bg="white" color="brand.700" borderRadius="full" px={2}>
+                {totalUnidades}
+              </Badge>
+            )}
+          </Button>
+        </HStack>
       </Flex>
 
       {tiendaFiltrada && (
@@ -359,11 +454,145 @@ function Repuestos() {
                 key={producto.id}
                 producto={producto}
                 alAgregar={desdeCache ? undefined : manejarAgregar}
+                alEditar={esAdmin ? abrirEditarModal : undefined}
+                alEliminar={esAdmin ? manejarEliminarRepuesto : undefined}
               />
             ))}
           </SimpleGrid>
         </>
       )}
+
+      {/* Modal Admin Crear/Editar Repuesto */}
+      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+        <ModalOverlay />
+        <ModalContent as="form" onSubmit={manejarGuardarRepuesto}>
+          <ModalHeader>{editandoId ? 'Editar Repuesto' : 'Agregar Nuevo Repuesto'}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <SimpleGrid columns={2} spacing={4}>
+              <GridItem colSpan={2}>
+                <FormControl isRequired>
+                  <FormLabel fontSize="sm">Tienda / Vendedor</FormLabel>
+                  <Select
+                    value={prodForm.vendedor_id}
+                    onChange={(e) => setProdForm({ ...prodForm, vendedor_id: e.target.value })}
+                  >
+                    {tiendas.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.nombre_local} ({t.direccion})
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              </GridItem>
+
+              <GridItem colSpan={2}>
+                <FormControl isRequired>
+                  <FormLabel fontSize="sm">Nombre del Producto</FormLabel>
+                  <ChakraInput
+                    value={prodForm.nombre}
+                    onChange={(e) => setProdForm({ ...prodForm, nombre: e.target.value })}
+                    placeholder="Ej: Llanta Rin 15 Goodyear"
+                  />
+                </FormControl>
+              </GridItem>
+
+              <FormControl isRequired>
+                <FormLabel fontSize="sm">Categoría</FormLabel>
+                <Select
+                  value={prodForm.categoria}
+                  onChange={(e) => setProdForm({ ...prodForm, categoria: e.target.value })}
+                >
+                  {categorias.length > 0 ? (
+                    categorias.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="motor">motor</option>
+                      <option value="frenos">frenos</option>
+                      <option value="suspension">suspension</option>
+                      <option value="electricidad">electricidad</option>
+                      <option value="carroceria">carroceria</option>
+                      <option value="llantas">llantas</option>
+                      <option value="aceites_fluidos">aceites_fluidos</option>
+                      <option value="accesorios">accesorios</option>
+                      <option value="otros">otros</option>
+                    </>
+                  )}
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Marca</FormLabel>
+                <ChakraInput
+                  value={prodForm.marca}
+                  onChange={(e) => setProdForm({ ...prodForm, marca: e.target.value })}
+                  placeholder="Ej: Goodyear"
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel fontSize="sm">Precio ($)</FormLabel>
+                <ChakraInput
+                  type="number"
+                  step="0.01"
+                  value={prodForm.precio}
+                  onChange={(e) => setProdForm({ ...prodForm, precio: e.target.value })}
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel fontSize="sm">Stock</FormLabel>
+                <ChakraInput
+                  type="number"
+                  value={prodForm.stock}
+                  onChange={(e) => setProdForm({ ...prodForm, stock: e.target.value })}
+                />
+              </FormControl>
+
+              <GridItem colSpan={2}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Compatibilidad</FormLabel>
+                  <ChakraInput
+                    value={prodForm.compatibilidad}
+                    onChange={(e) => setProdForm({ ...prodForm, compatibilidad: e.target.value })}
+                    placeholder="Ej: Universal / Chevrolet Aveo"
+                  />
+                </FormControl>
+              </GridItem>
+
+              <GridItem colSpan={2}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Descripción</FormLabel>
+                  <ChakraInput
+                    value={prodForm.descripcion}
+                    onChange={(e) => setProdForm({ ...prodForm, descripcion: e.target.value })}
+                  />
+                </FormControl>
+              </GridItem>
+
+              <GridItem colSpan={2}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Imagen URL</FormLabel>
+                  <ChakraInput
+                    value={prodForm.imagen_url}
+                    onChange={(e) => setProdForm({ ...prodForm, imagen_url: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </FormControl>
+              </GridItem>
+            </SimpleGrid>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose}>Cancelar</Button>
+            <Button colorScheme="brand" type="submit" isLoading={guardando}>
+              {editandoId ? 'Guardar Cambios' : 'Agregar Repuesto'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Layout>
   );
 }

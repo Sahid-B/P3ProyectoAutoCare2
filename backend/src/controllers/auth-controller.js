@@ -415,6 +415,7 @@ async function verificarLogin2FA(req, res) {
         correo: usuario.correo,
         email_verified: true,
         is_2fa_enabled: usuario.is_2fa_enabled,
+        rol: usuario.rol,
       },
     });
   } catch (error) {
@@ -791,6 +792,7 @@ async function autenticarConGoogle(req, res) {
         email_verified: usuario.email_verified,
         is_2fa_enabled: usuario.is_2fa_enabled,
         created_at: usuario.created_at,
+        rol: usuario.rol,
       },
     });
   } catch (error) {

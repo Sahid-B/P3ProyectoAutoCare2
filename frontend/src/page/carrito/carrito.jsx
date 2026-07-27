@@ -94,6 +94,98 @@ function Carrito() {
    * Crea el pedido y ejecuta el cobro. La compra solo queda pagada si el
    * backend confirma la captura con el proveedor.
    */
+  const [paypalCargado, setPaypalCargado] = useState(false);
+
+  useEffect(() => {
+    if (metodoSeleccionado === 'paypal') {
+      const metodoPaypal = metodosPago.find(m => m.id === 'paypal');
+      if (metodoPaypal && metodoPaypal.clientId) {
+        if (window.paypal) {
+          setPaypalCargado(true);
+          return;
+        }
+
+        // Add script tag to load PayPal JS SDK
+        const script = document.createElement('script');
+        script.id = 'paypal-sdk-script';
+        script.src = `https://www.paypal.com/sdk/js?client-id=${metodoPaypal.clientId}&currency=USD`;
+        script.async = true;
+        script.onload = () => setPaypalCargado(true);
+        script.onerror = () => setError('No se pudo cargar la pasarela de PayPal.');
+        document.body.appendChild(script);
+      }
+    }
+  }, [metodoSeleccionado, metodosPago]);
+
+  useEffect(() => {
+    if (metodoSeleccionado === 'paypal' && paypalCargado && window.paypal) {
+      const container = document.getElementById('paypal-button-container');
+      if (container) {
+        container.innerHTML = '';
+        window.paypal.Buttons({
+          createOrder: async () => {
+            setError('');
+            setProcesando(true);
+            try {
+              const respuestaPedido = await crearPedido(
+                items.map((item) => ({ producto_id: item.producto_id, cantidad: item.cantidad })),
+              );
+              const compras = respuestaPedido.compras || [];
+              if (compras.length === 0) {
+                throw new Error('No se pudo crear el pedido.');
+              }
+
+              // Guardamos compras para capturar en onApprove
+              window.comprasPendientesPaypal = compras;
+
+              const primeraCompra = compras[0];
+              const respuestaOrden = await iniciarPago(primeraCompra.id, 'paypal');
+              if (!respuestaOrden?.orden?.ordenId) {
+                throw new Error('No se pudo iniciar el pago en PayPal.');
+              }
+
+              return respuestaOrden.orden.ordenId;
+            } catch (err) {
+              setError(err.message || 'Error al iniciar el pago con PayPal.');
+              setProcesando(false);
+              throw err;
+            }
+          },
+          onApprove: async (data, actions) => {
+            try {
+              const compras = window.comprasPendientesPaypal || [];
+              for (const compra of compras) {
+                await confirmarPago(compra.id, data.orderID);
+              }
+
+              vaciarCarrito();
+              toast({
+                title: 'Compra realizada',
+                description: 'Tu pedido y pago con PayPal fueron procesados con éxito.',
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+              });
+              navigate('/mis-pedidos');
+            } catch (err) {
+              setError(err.message || 'Error al confirmar la transacción de PayPal.');
+            } finally {
+              setProcesando(false);
+            }
+          },
+          onCancel: () => {
+            setError('Pago cancelado por el usuario.');
+            setProcesando(false);
+          },
+          onError: (err) => {
+            setError('Ocurrió un error con el botón de PayPal.');
+            setProcesando(false);
+          }
+        }).render('#paypal-button-container');
+      }
+    }
+  }, [metodoSeleccionado, paypalCargado, items, navigate, toast, vaciarCarrito]);
+
   const realizarCompra = async () => {
     setError('');
 
@@ -119,18 +211,6 @@ function Carrito() {
 
       for (const compra of compras) {
         const respuestaOrden = await iniciarPago(compra.id, metodoSeleccionado);
-
-        // PayPal necesita que el cliente apruebe la orden en su sitio antes de
-        // capturarla; en ese caso se redirige y el pago se confirma al volver.
-        if (respuestaOrden.orden?.urlAprobacion) {
-          sessionStorage.setItem(
-            'autocare_pago_pendiente',
-            JSON.stringify({ compraId: compra.id, ordenId: respuestaOrden.orden.ordenId }),
-          );
-          window.location.href = respuestaOrden.orden.urlAprobacion;
-          return;
-        }
-
         await confirmarPago(compra.id, respuestaOrden.orden.ordenId);
         pagadas.push(compra.id);
       }
@@ -353,16 +433,20 @@ function Carrito() {
               </RadioGroup>
             )}
 
-            <Button
-              variant="primary"
-              w="100%"
-              leftIcon={enLinea ? <FaLock /> : <FaWifi />}
-              onClick={realizarCompra}
-              isLoading={procesando}
-              isDisabled={!enLinea || metodosPago.length === 0}
-            >
-              {enLinea ? 'Confirmar compra' : 'Requiere conexion'}
-            </Button>
+            {metodoSeleccionado === 'paypal' ? (
+              <Box id="paypal-button-container" my={4} minH="45px" />
+            ) : (
+              <Button
+                variant="primary"
+                w="100%"
+                leftIcon={enLinea ? <FaLock /> : <FaWifi />}
+                onClick={realizarCompra}
+                isLoading={procesando}
+                isDisabled={!enLinea || metodosPago.length === 0}
+              >
+                {enLinea ? 'Confirmar compra' : 'Requiere conexion'}
+              </Button>
+            )}
 
             <Text fontSize="xs" color="secondary.500" mt={3} textAlign="center">
               El pedido se marca como pagado solo cuando el proveedor de pago confirma la

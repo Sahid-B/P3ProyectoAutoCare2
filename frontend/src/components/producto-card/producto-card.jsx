@@ -3,6 +3,7 @@ import {
   Badge,
   Box,
   Button,
+  IconButton,
   Flex,
   Heading,
   HStack,
@@ -10,14 +11,14 @@ import {
   Image,
   Text,
 } from '@chakra-ui/react';
-import { FaGear, FaStore, FaCartShopping } from 'react-icons/fa6';
+import { FaGear, FaStore, FaCartShopping, FaPenToSquare, FaTrash } from 'react-icons/fa6';
 import { moneda } from '../../utils/formato.js';
 
 /**
  * Tarjeta de producto del catalogo de repuestos.
  * Muestra imagen, categoria, precio, stock y la tienda que lo vende.
  */
-function ProductoCard({ producto, alAgregar, agregando = false }) {
+function ProductoCard({ producto, alAgregar, alEditar, alEliminar, agregando = false }) {
   const stock = Number(producto.stock);
   const sinStock = stock <= 0;
 
@@ -61,6 +62,29 @@ function ProductoCard({ producto, alAgregar, agregando = false }) {
         >
           {producto.categoria}
         </Badge>
+
+        {(alEditar || alEliminar) && (
+          <HStack position="absolute" top={3} right={3} spacing={2} bg="rgba(255,255,255,0.9)" p={1} borderRadius="md" boxShadow="sm">
+            {alEditar && (
+              <IconButton
+                aria-label="Editar repuesto"
+                icon={<FaPenToSquare />}
+                size="xs"
+                colorScheme="blue"
+                onClick={() => alEditar(producto)}
+              />
+            )}
+            {alEliminar && (
+              <IconButton
+                aria-label="Eliminar repuesto"
+                icon={<FaTrash />}
+                size="xs"
+                colorScheme="red"
+                onClick={() => alEliminar(producto.id)}
+              />
+            )}
+          </HStack>
+        )}
       </Box>
 
       <Box p={5} display="flex" flexDirection="column" flex="1">

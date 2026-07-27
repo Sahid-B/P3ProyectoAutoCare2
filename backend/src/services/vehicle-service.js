@@ -8,7 +8,13 @@ const COLUMNAS = `id, usuario_id, marca, modelo, anio, placa, color, tipo_vehicu
   kilometraje_actual, imagen_url, observaciones, created_at, updated_at`;
 
 /** Lista los vehiculos de un usuario (mas recientes primero). */
-async function listarPorUsuario(usuarioId) {
+async function listarPorUsuario(usuarioId, esAdmin = false) {
+  if (esAdmin) {
+    const { rows } = await pool.query(
+      `SELECT ${COLUMNAS} FROM vehiculos ORDER BY created_at DESC`
+    );
+    return rows;
+  }
   const { rows } = await pool.query(
     `SELECT ${COLUMNAS} FROM vehiculos WHERE usuario_id = $1 ORDER BY created_at DESC`,
     [usuarioId],
@@ -17,7 +23,14 @@ async function listarPorUsuario(usuarioId) {
 }
 
 /** Obtiene un vehiculo por id, solo si pertenece al usuario. */
-async function obtenerPorId(id, usuarioId) {
+async function obtenerPorId(id, usuarioId, esAdmin = false) {
+  if (esAdmin) {
+    const { rows } = await pool.query(
+      `SELECT ${COLUMNAS} FROM vehiculos WHERE id = $1`,
+      [id],
+    );
+    return rows[0] || null;
+  }
   const { rows } = await pool.query(
     `SELECT ${COLUMNAS} FROM vehiculos WHERE id = $1 AND usuario_id = $2`,
     [id, usuarioId],

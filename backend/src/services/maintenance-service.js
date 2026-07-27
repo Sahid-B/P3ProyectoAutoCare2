@@ -11,18 +11,26 @@ const COLUMNAS_SELECT = `
 `;
 
 /** Lista todos los mantenimientos de los vehiculos del usuario (ordenados por fecha descendente). */
-async function listarPorUsuario(usuarioId, vehicleId = null) {
+async function listarPorUsuario(usuarioId, vehicleId = null, esAdmin = false) {
   let query = `
     SELECT ${COLUMNAS_SELECT}
     FROM maintenances m
     JOIN vehiculos v ON m.vehicle_id = v.id
-    WHERE v.usuario_id = $1
   `;
-  const params = [usuarioId];
+  const params = [];
 
-  if (vehicleId) {
-    query += ` AND m.vehicle_id = $2`;
-    params.push(vehicleId);
+  if (esAdmin) {
+    if (vehicleId) {
+      query += ` WHERE m.vehicle_id = $1`;
+      params.push(vehicleId);
+    }
+  } else {
+    query += ` WHERE v.usuario_id = $1`;
+    params.push(usuarioId);
+    if (vehicleId) {
+      query += ` AND m.vehicle_id = $2`;
+      params.push(vehicleId);
+    }
   }
 
   query += ` ORDER BY m.date DESC, m.created_at DESC`;
@@ -32,14 +40,19 @@ async function listarPorUsuario(usuarioId, vehicleId = null) {
 }
 
 /** Obtiene un mantenimiento especifico por ID garantizando que pertenezca a un vehiculo del usuario. */
-async function obtenerPorId(id, usuarioId) {
-  const { rows } = await pool.query(
-    `SELECT ${COLUMNAS_SELECT}
+async function obtenerPorId(id, usuarioId, esAdmin = false) {
+  let query = `SELECT ${COLUMNAS_SELECT}
      FROM maintenances m
      JOIN vehiculos v ON m.vehicle_id = v.id
-     WHERE m.id = $1 AND v.usuario_id = $2`,
-    [id, usuarioId],
-  );
+     WHERE m.id = $1`;
+  const params = [id];
+
+  if (!esAdmin) {
+    query += ` AND v.usuario_id = $2`;
+    params.push(usuarioId);
+  }
+
+  const { rows } = await pool.query(query, params);
   return rows[0] || null;
 }
 
@@ -159,18 +172,23 @@ async function eliminar(id, usuarioId) {
 }
 
 /** Obtiene estadisticas de mantenimientos para el Dashboard. */
-async function obtenerEstadisticas(usuarioId) {
-  const { rows } = await pool.query(
-    `SELECT
+async function obtenerEstadisticas(usuarioId, esAdmin = false) {
+  let query = `
+    SELECT
        COALESCE(SUM(cost), 0)::numeric AS gasto_total,
        COALESCE(SUM(CASE WHEN date >= date_trunc('month', CURRENT_DATE) THEN cost ELSE 0 END), 0)::numeric AS gasto_mes,
        COUNT(*)::int AS total_mantenimientos
      FROM maintenances m
      JOIN vehiculos v ON m.vehicle_id = v.id
-     WHERE v.usuario_id = $1`,
-    [usuarioId],
-  );
-  return rows[0];
+  `;
+  const params = [];
+
+  if (!esAdmin) {
+    query += ` WHERE v.usuario_id = $1`;
+    params.push(usuarioId);
+  }
+
+  const { rows } = await pool.query(query, params);
 }
 
 module.exports = {

@@ -69,7 +69,7 @@ function calcularTasacion(datos) {
   puntaje += Math.round((factorEstado - 1) * 45);
   puntaje += Math.round((factorMantenimiento - 1) * 55);
   puntaje += Math.round((factorDanos - 1) * 60);
-  puntaje = Math.max(0, Math.min(100, puntaje));
+  puntaje = Math.round(Math.max(0, Math.min(100, puntaje)));
 
   const analisis = [
     `Tasacion estimada para ${datos.marca} ${datos.modelo} ${datos.anio}.`,
@@ -132,12 +132,54 @@ async function crear(usuarioId, datos) {
   return rows[0];
 }
 
-async function eliminar(id, usuarioId) {
-  const { rowCount } = await pool.query(
-    'DELETE FROM marketplace_listings WHERE id = $1 AND usuario_id = $2',
-    [id, usuarioId],
-  );
+async function eliminar(id, usuarioId, esAdmin = false) {
+  const query = esAdmin
+    ? 'DELETE FROM marketplace_listings WHERE id = $1'
+    : 'DELETE FROM marketplace_listings WHERE id = $1 AND usuario_id = $2';
+  const params = esAdmin ? [id] : [id, usuarioId];
+  const { rowCount } = await pool.query(query, params);
   return rowCount > 0;
+}
+
+async function actualizar(id, datos, usuarioId, esAdmin = false) {
+  const tasacion = calcularTasacion(datos);
+  const queryCheck = esAdmin
+    ? 'SELECT id FROM marketplace_listings WHERE id = $1'
+    : 'SELECT id FROM marketplace_listings WHERE id = $1 AND usuario_id = $2';
+  const paramsCheck = esAdmin ? [id] : [id, usuarioId];
+  const existing = await pool.query(queryCheck, paramsCheck);
+  if (existing.rows.length === 0) return null;
+
+  const { rows } = await pool.query(
+    `UPDATE marketplace_listings
+     SET marca = $1, modelo = $2, anio = $3, kilometraje = $4, ciudad = $5, tipo_vehiculo = $6,
+         precio_vendedor = $7, imagen_url = $8, estado_visual = $9, historial_mantenimiento = $10,
+         danos_reportados = $11, precio_sugerido_min = $12, precio_sugerido_max = $13,
+         precio_sugerido = $14, puntaje = $15, veredicto = $16, analisis = $17, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $18
+     RETURNING ${COLUMNAS}`,
+    [
+      datos.marca,
+      datos.modelo,
+      datos.anio,
+      datos.kilometraje,
+      datos.ciudad,
+      datos.tipo_vehiculo,
+      datos.precio_vendedor,
+      datos.imagen_url,
+      datos.estado_visual,
+      datos.historial_mantenimiento,
+      datos.danos_reportados,
+      tasacion.precio_sugerido_min,
+      tasacion.precio_sugerido_max,
+      tasacion.precio_sugerido,
+      tasacion.puntaje,
+      tasacion.veredicto,
+      tasacion.analisis,
+      id,
+    ]
+  );
+  return rows[0];
 }
 
 async function listarTodos() {
@@ -155,6 +197,7 @@ module.exports = {
   listarPorUsuario,
   listarTodos,
   crear,
+  actualizar,
   eliminar,
   calcularTasacion,
 };

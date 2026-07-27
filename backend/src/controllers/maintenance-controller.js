@@ -75,9 +75,10 @@ function validarMantenimiento(body) {
 async function listar(peticion, respuesta, siguiente) {
   try {
     const usuarioId = peticion.usuario.id;
+    const esAdmin = peticion.usuario.rol === 'admin';
     const vehicleId = peticion.query.vehicle_id ? Number(peticion.query.vehicle_id) : null;
 
-    const lista = await maintenanceService.listarPorUsuario(usuarioId, vehicleId);
+    const lista = await maintenanceService.listarPorUsuario(usuarioId, vehicleId, esAdmin);
     respuesta.json({
       success: true,
       data: lista,
@@ -91,7 +92,8 @@ async function listar(peticion, respuesta, siguiente) {
 async function obtenerEstadisticas(peticion, respuesta, siguiente) {
   try {
     const usuarioId = peticion.usuario.id;
-    const stats = await maintenanceService.obtenerEstadisticas(usuarioId);
+    const esAdmin = peticion.usuario.rol === 'admin';
+    const stats = await maintenanceService.obtenerEstadisticas(usuarioId, esAdmin);
 
     respuesta.json({
       success: true,
@@ -114,7 +116,8 @@ async function obtenerPorId(peticion, respuesta, siguiente) {
     }
 
     const usuarioId = peticion.usuario.id;
-    const mantenimiento = await maintenanceService.obtenerPorId(id, usuarioId);
+    const esAdmin = peticion.usuario.rol === 'admin';
+    const mantenimiento = await maintenanceService.obtenerPorId(id, usuarioId, esAdmin);
 
     if (!mantenimiento) {
       return respuesta.status(404).json({

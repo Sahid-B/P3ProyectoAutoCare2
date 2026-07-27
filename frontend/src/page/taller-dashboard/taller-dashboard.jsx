@@ -1,10 +1,32 @@
-import { Box, Heading, Text, SimpleGrid, Card, CardBody, Stat, StatLabel, StatNumber, StatHelpText, Icon } from '@chakra-ui/react';
-import { FaUsers, FaStar, FaEye, FaCalendarCheck } from 'react-icons/fa6';
+import { useEffect, useState } from 'react';
+import { Box, Heading, Text, SimpleGrid, Card, CardBody, Stat, StatLabel, StatNumber, StatHelpText, Icon, Spinner } from '@chakra-ui/react';
+import { FaUsers, FaEye, FaCalendarCheck } from 'react-icons/fa6';
 import Layout from '../../components/layout/index.jsx';
 import { useAuth } from '../../context/auth-context.jsx';
+import { obtenerCitas } from '../../services/citas-service';
 
 function TallerDashboard() {
   const { usuario } = useAuth();
+  const [citasActivas, setCitasActivas] = useState(0);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    async function cargarCitas() {
+      try {
+        const res = await obtenerCitas();
+        const activas = (res.data || []).filter(
+          (c) => c.estado === 'pendiente' || c.estado === 'aceptada'
+        );
+        setCitasActivas(activas.length);
+      } catch (error) {
+        console.error('Error al obtener citas en taller dashboard:', error);
+      } finally {
+        setCargando(false);
+      }
+    }
+
+    cargarCitas();
+  }, []);
 
   return (
     <Layout conSidebar>
@@ -16,29 +38,7 @@ function TallerDashboard() {
           Este es el panel de control para tu taller mecánico.
         </Text>
 
-        <SimpleGrid columns={{ base: 1, sm: 2, xl: 4 }} spacing={4} mb={8}>
-          <Card variant="outline" borderColor="secondary.200">
-            <CardBody p={4}>
-              <Stat>
-                <StatLabel 
-                  color="secondary.500" 
-                  display="flex" 
-                  alignItems="center"
-                  whiteSpace="normal"
-                  lineHeight="shorter"
-                  mb={1}
-                >
-                  <Icon as={FaStar} mr={2} color="yellow.400" flexShrink={0} />
-                  Calificación Promedio
-                </StatLabel>
-                <StatNumber color="secondary.800" fontSize={['xl', '2xl']} whiteSpace="nowrap">
-                  5.0
-                </StatNumber>
-                <StatHelpText fontSize="xs" mb={0}>Basado en 0 reseñas</StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
+        <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={4} mb={8}>
           <Card variant="outline" borderColor="secondary.200">
             <CardBody p={4}>
               <Stat>
@@ -98,9 +98,9 @@ function TallerDashboard() {
                   Citas Agendadas
                 </StatLabel>
                 <StatNumber color="secondary.800" fontSize={['xl', '2xl']} whiteSpace="nowrap">
-                  0
+                  {cargando ? <Spinner size="sm" color="brand.500" /> : citasActivas}
                 </StatNumber>
-                <StatHelpText fontSize="xs" mb={0}>Próximamente disponible</StatHelpText>
+                <StatHelpText fontSize="xs" mb={0}>Citas activas registradas</StatHelpText>
               </Stat>
             </CardBody>
           </Card>

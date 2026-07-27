@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Heading,
@@ -39,6 +40,7 @@ import {
   FiUser,
   FiEye,
   FiEyeOff,
+  FiArrowLeft,
 } from 'react-icons/fi';
 import Layout from '../../components/layout/layout.jsx';
 import { peticion } from '../../services/api-service.js';
@@ -63,6 +65,7 @@ const TARJETAS = [
 ];
 
 function AdminDashboard() {
+  const navigate = useNavigate();
   const toast = useToast();
   const [stats, setStats] = useState({});
   const [users, setUsers] = useState([]);
@@ -170,6 +173,16 @@ function AdminDashboard() {
   return (
     <Layout>
       <Box maxW="container.xl" mx="auto" px={{ base: 4, md: 6 }} py={{ base: 6, md: 8 }}>
+        <Button
+          leftIcon={<Icon as={FiArrowLeft} />}
+          variant="ghost"
+          mb={4}
+          color="secondary.600"
+          _hover={{ bg: 'secondary.100', color: 'secondary.800' }}
+          onClick={() => navigate('/perfil')}
+        >
+          Regresar
+        </Button>
         <Heading as="h1" size="xl" color="secondary.900" mb={2}>
           Panel de Administrador
         </Heading>

@@ -36,6 +36,7 @@ import {
   DetalleRepuesto,
   Carrito,
   MisPedidos,
+  Citas,
 } from '../page/index.jsx';
 
 import ProtectedRoute from '../components/protected-route/index.jsx';
@@ -62,6 +63,8 @@ function AppRouter() {
                 <Navigate to="/taller-dashboard" replace />
               ) : usuario?.rol === 'vendedor_repuestos' ? (
                 <Navigate to="/vendedor-dashboard" replace />
+              ) : usuario?.rol === 'admin' ? (
+                <Navigate to="/admin" replace />
               ) : (
                 <Dashboard />
               )}
@@ -259,11 +262,11 @@ function AppRouter() {
           }
         />
 
-        {/* Detalle de pedido: lo consultan el cliente que compro y el vendedor */}
+         {/* Detalle de pedido: lo consultan el cliente que compro y el vendedor */}
         <Route
           path="/pedidos/:id"
           element={
-            <ProtectedRoute rolesPermitidos={['usuario', 'vendedor_repuestos', 'admin']}>
+            <ProtectedRoute rolesPermitidos={['usuario', 'taller', 'vendedor_repuestos', 'admin']}>
               <DetallePedido />
             </ProtectedRoute>
           }
@@ -273,7 +276,7 @@ function AppRouter() {
         <Route
           path="/repuestos"
           element={
-            <ProtectedRoute rolesPermitidos={['usuario', 'admin']}>
+            <ProtectedRoute rolesPermitidos={['usuario', 'admin', 'vendedor_repuestos', 'taller']}>
               <Repuestos />
             </ProtectedRoute>
           }
@@ -281,7 +284,7 @@ function AppRouter() {
         <Route
           path="/repuestos/:id"
           element={
-            <ProtectedRoute rolesPermitidos={['usuario', 'admin']}>
+            <ProtectedRoute rolesPermitidos={['usuario', 'admin', 'vendedor_repuestos', 'taller']}>
               <DetalleRepuesto />
             </ProtectedRoute>
           }
@@ -289,7 +292,7 @@ function AppRouter() {
         <Route
           path="/carrito"
           element={
-            <ProtectedRoute rolesPermitidos={['usuario']}>
+            <ProtectedRoute rolesPermitidos={['usuario', 'taller']}>
               <Carrito />
             </ProtectedRoute>
           }
@@ -297,8 +300,16 @@ function AppRouter() {
         <Route
           path="/mis-pedidos"
           element={
-            <ProtectedRoute rolesPermitidos={['usuario']}>
+            <ProtectedRoute rolesPermitidos={['usuario', 'taller']}>
               <MisPedidos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/citas"
+          element={
+            <ProtectedRoute rolesPermitidos={['usuario']}>
+              <Citas />
             </ProtectedRoute>
           }
         />

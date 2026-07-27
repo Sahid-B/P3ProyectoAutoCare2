@@ -172,15 +172,32 @@ async function obtenerMiProducto(req, res) {
  */
 async function crear(req, res) {
   try {
-    const tienda = await obtenerTiendaDelUsuario(req, res);
-    if (!tienda) return undefined;
+    const esAdmin = req.usuario?.rol === 'admin';
+    let vendedorId = null;
+
+    if (esAdmin) {
+      vendedorId = req.body.vendedor_id ? Number(req.body.vendedor_id) : null;
+      if (!vendedorId) {
+        // Si no mandó vendedor_id, tomar la primera tienda disponible
+        const tiendas = await vendedoresService.listarPublicas();
+        if (tiendas.length > 0) vendedorId = tiendas[0].id;
+      }
+    } else {
+      const tienda = await obtenerTiendaDelUsuario(req, res);
+      if (!tienda) return undefined;
+      vendedorId = tienda.id;
+    }
+
+    if (!vendedorId) {
+      return res.status(400).json({ success: false, message: 'No hay ninguna tienda asociada para crear el producto.' });
+    }
 
     const mensajeError = validarProducto(req.body);
     if (mensajeError) {
       return res.status(400).json({ success: false, message: mensajeError });
     }
 
-    const producto = await productosService.crear(tienda.id, {
+    const producto = await productosService.crear(vendedorId, {
       ...req.body,
       precio: Number(req.body.precio),
       stock: Number(req.body.stock),
@@ -203,8 +220,14 @@ async function crear(req, res) {
  */
 async function actualizar(req, res) {
   try {
-    const tienda = await obtenerTiendaDelUsuario(req, res);
-    if (!tienda) return undefined;
+    const esAdmin = req.usuario?.rol === 'admin';
+    let vendedorId = null;
+
+    if (!esAdmin) {
+      const tienda = await obtenerTiendaDelUsuario(req, res);
+      if (!tienda) return undefined;
+      vendedorId = tienda.id;
+    }
 
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
@@ -216,11 +239,11 @@ async function actualizar(req, res) {
       return res.status(400).json({ success: false, message: mensajeError });
     }
 
-    const producto = await productosService.actualizar(id, tienda.id, {
+    const producto = await productosService.actualizar(id, vendedorId, {
       ...req.body,
       precio: Number(req.body.precio),
       stock: Number(req.body.stock),
-    });
+    }, esAdmin);
 
     if (!producto) {
       return res.status(404).json({
@@ -246,20 +269,26 @@ async function actualizar(req, res) {
  */
 async function eliminar(req, res) {
   try {
-    const tienda = await obtenerTiendaDelUsuario(req, res);
-    if (!tienda) return undefined;
+    const esAdmin = req.usuario?.rol === 'admin';
+    let vendedorId = null;
+
+    if (!esAdmin) {
+      const tienda = await obtenerTiendaDelUsuario(req, res);
+      if (!tienda) return undefined;
+      vendedorId = tienda.id;
+    }
 
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ success: false, message: 'Identificador de producto invalido.' });
     }
 
-    const eliminado = await productosService.eliminar(id, tienda.id);
+    const eliminado = await productosService.eliminar(id, vendedorId, esAdmin);
 
     if (!eliminado) {
       return res.status(404).json({
         success: false,
-        message: 'El producto no existe o no pertenece a tu tienda.',
+        message: 'El producto no existe o no tienes permisos.',
       });
     }
 

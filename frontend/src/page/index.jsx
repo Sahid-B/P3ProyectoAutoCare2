@@ -40,3 +40,4 @@ export { default as Repuestos } from './repuestos/index.jsx';
 export { default as DetalleRepuesto } from './detalle-repuesto/index.jsx';
 export { default as Carrito } from './carrito/index.jsx';
 export { default as MisPedidos } from './mis-pedidos/index.jsx';
+export { default as Citas } from './citas/index.jsx';

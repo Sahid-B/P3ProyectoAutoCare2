@@ -109,12 +109,33 @@ async function crear(req, res) {
   }
 }
 
+async function actualizar(req, res) {
+  const id = idValido(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: 'Identificador de publicacion invalido.' });
+
+  const { errores, datos } = validarPublicacion(req.body);
+  if (errores.length > 0) {
+    return res.status(400).json({ success: false, message: errores[0], errores });
+  }
+
+  try {
+    const esAdmin = req.usuario?.rol === 'admin';
+    const publicacion = await marketplaceService.actualizar(id, datos, req.usuario.id, esAdmin);
+    if (!publicacion) return res.status(404).json({ success: false, message: 'Publicacion no encontrada.' });
+    return res.json({ success: true, message: 'Publicacion actualizada correctamente.', data: publicacion });
+  } catch (error) {
+    console.error('[marketplace-controller] actualizar:', error.message);
+    return res.status(500).json({ success: false, message: 'No se pudo actualizar la publicacion.' });
+  }
+}
+
 async function eliminar(req, res) {
   const id = idValido(req.params.id);
   if (!id) return res.status(400).json({ success: false, message: 'Identificador de publicacion invalido.' });
 
   try {
-    const eliminado = await marketplaceService.eliminar(id, req.usuario.id);
+    const esAdmin = req.usuario?.rol === 'admin';
+    const eliminado = await marketplaceService.eliminar(id, req.usuario.id, esAdmin);
     if (!eliminado) return res.status(404).json({ success: false, message: 'Publicacion no encontrada.' });
     return res.json({ success: true, message: 'Publicacion eliminada correctamente.' });
   } catch (error) {
@@ -150,6 +171,7 @@ module.exports = {
   listar,
   listarTodos,
   crear,
+  actualizar,
   eliminar,
   tasar,
 };

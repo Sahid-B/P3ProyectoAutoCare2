@@ -22,6 +22,13 @@ export function estimateListing(datos) {
   });
 }
 
+export function updateListing(id, datos) {
+  return peticion(`/marketplace/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  });
+}
+
 export function deleteListing(id) {
   return peticion(`/marketplace/${id}`, {
     method: 'DELETE',
@@ -32,6 +39,7 @@ export default {
   getListings,
   getAllListings,
   createListing,
+  updateListing,
   estimateListing,
   deleteListing,
 };

@@ -17,12 +17,12 @@ router.use(verificarToken);
 
 // Solo los clientes compran. Las rutas con nombre fijo van antes de "/:id".
 router.get('/metodos-pago', listarMetodosPago);
-router.get('/mis-compras', verificarRoles('usuario'), listarMisCompras);
+router.get('/mis-compras', verificarRoles('usuario', 'taller'), listarMisCompras);
 router.get('/recibidas', verificarRolVendedor, listarRecibidas);
 
-router.post('/', verificarRoles('usuario'), crear);
-router.post('/:id/pago/iniciar', verificarRoles('usuario'), iniciarPago);
-router.post('/:id/pago/confirmar', verificarRoles('usuario'), confirmarPago);
+router.post('/', verificarRoles('usuario', 'taller'), crear);
+router.post('/:id/pago/iniciar', verificarRoles('usuario', 'taller'), iniciarPago);
+router.post('/:id/pago/confirmar', verificarRoles('usuario', 'taller'), confirmarPago);
 
 // El detalle valida dentro del servicio que quien consulta sea el cliente,
 // el vendedor del pedido o un administrador.

@@ -136,43 +136,72 @@ async function crear(vendedorId, datos) {
  * Actualiza un producto verificando en la propia consulta que pertenezca al
  * vendedor indicado. Devuelve null si el producto no existe o no es suyo.
  */
-async function actualizar(id, vendedorId, datos) {
-  const { rows } = await pool.query(
-    `UPDATE productos
-     SET nombre = $1,
-         descripcion = $2,
-         categoria = $3,
-         marca = $4,
-         compatibilidad = $5,
-         precio = $6,
-         stock = $7,
-         imagen_url = $8,
-         estado = $9,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $10 AND vendedor_id = $11
-     RETURNING ${COLUMNAS}`,
-    [
-      datos.nombre.trim(),
-      datos.descripcion?.trim() || null,
-      datos.categoria,
-      datos.marca?.trim() || null,
-      datos.compatibilidad?.trim() || null,
-      datos.precio,
-      datos.stock,
-      datos.imagen_url?.trim() || null,
-      datos.estado || 'activo',
-      id,
-      vendedorId,
-    ],
-  );
+async function actualizar(id, vendedorId, datos, esAdmin = false) {
+  const query = esAdmin
+    ? `UPDATE productos
+       SET nombre = $1,
+           descripcion = $2,
+           categoria = $3,
+           marca = $4,
+           compatibilidad = $5,
+           precio = $6,
+           stock = $7,
+           imagen_url = $8,
+           estado = $9,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $10
+       RETURNING ${COLUMNAS}`
+    : `UPDATE productos
+       SET nombre = $1,
+           descripcion = $2,
+           categoria = $3,
+           marca = $4,
+           compatibilidad = $5,
+           precio = $6,
+           stock = $7,
+           imagen_url = $8,
+           estado = $9,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $10 AND vendedor_id = $11
+       RETURNING ${COLUMNAS}`;
+
+  const params = esAdmin
+    ? [
+        datos.nombre.trim(),
+        datos.descripcion?.trim() || null,
+        datos.categoria,
+        datos.marca?.trim() || null,
+        datos.compatibilidad?.trim() || null,
+        datos.precio,
+        datos.stock,
+        datos.imagen_url?.trim() || null,
+        datos.estado || 'activo',
+        id,
+      ]
+    : [
+        datos.nombre.trim(),
+        datos.descripcion?.trim() || null,
+        datos.categoria,
+        datos.marca?.trim() || null,
+        datos.compatibilidad?.trim() || null,
+        datos.precio,
+        datos.stock,
+        datos.imagen_url?.trim() || null,
+        datos.estado || 'activo',
+        id,
+        vendedorId,
+      ];
+
+  const { rows } = await pool.query(query, params);
   return rows[0] || null;
 }
 
-async function eliminar(id, vendedorId) {
-  const { rowCount } = await pool.query(
-    'DELETE FROM productos WHERE id = $1 AND vendedor_id = $2',
-    [id, vendedorId],
-  );
+async function eliminar(id, vendedorId, esAdmin = false) {
+  const query = esAdmin
+    ? 'DELETE FROM productos WHERE id = $1'
+    : 'DELETE FROM productos WHERE id = $1 AND vendedor_id = $2';
+  const params = esAdmin ? [id] : [id, vendedorId];
+  const { rowCount } = await pool.query(query, params);
   return rowCount > 0;
 }
 
