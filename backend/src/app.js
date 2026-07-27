@@ -17,9 +17,27 @@ const citasRoutes = require('./routes/citas-routes');
 // Configuracion de la aplicacion Express de AutoCare.
 const app = express();
 
+const origenesPermitidos = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+];
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Permitir peticiones sin origen (ej. curl, Render health checks)
+      if (!origin) return callback(null, true);
+      // Permitir dominios de Vercel (*.vercel.app) y origenes configurados
+      if (
+        origenesPermitidos.includes(origin) ||
+        /\.vercel\.app$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS bloqueado para origen: ${origin}`));
+    },
+    credentials: true,
   }),
 );
 app.use(express.json());
