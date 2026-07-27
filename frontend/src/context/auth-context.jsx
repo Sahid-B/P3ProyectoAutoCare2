@@ -1,26 +1,15 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import {
-  iniciarSesion as apiIniciarSesion,
-  verificarLogin2FA as apiVerificarLogin2FA,
-  registrarUsuario as apiRegistrarUsuario,
-  obtenerPerfil as apiObtenerPerfil,
-  cerrarSesion as apiCerrarSesion,
-  autenticarConGoogle as apiAutenticarConGoogle,
-} from '../services/api-service.js';
+  apiIniciarSesion,
+  apiVerificarLogin2FA,
+  apiRegistrarUsuario,
+  apiAutenticarConGoogle,
+  apiObtenerPerfil,
+  apiCerrarSesion,
+} from '../services/api-service';
 
+const AuthContext = createContext(null);
 const TOKEN_KEY = 'autocare_token';
-
-const AuthContext = createContext({
-  usuario: null,
-  token: null,
-  cargando: true,
-  login: async () => {},
-  completarLogin2FA: async () => {},
-  registro: async () => {},
-  loginGoogle: async () => {},
-  actualizarUsuarioLocal: () => {},
-  logout: async () => {},
-});
 
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
@@ -28,50 +17,41 @@ export function AuthProvider({ children }) {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    let activo = true;
-
     async function cargarUsuario() {
       const tokenGuardado = localStorage.getItem(TOKEN_KEY);
       if (!tokenGuardado) {
-        if (activo) {
-          setUsuario(null);
-          setCargando(false);
-        }
+        setCargando(false);
         return;
       }
 
       try {
         const respuesta = await apiObtenerPerfil();
-        if (activo && respuesta?.success && respuesta?.usuario) {
+        if (respuesta?.usuario) {
           setUsuario(respuesta.usuario);
-          setToken(tokenGuardado);
-        } else if (activo) {
+        } else {
           localStorage.removeItem(TOKEN_KEY);
-          setUsuario(null);
           setToken(null);
         }
       } catch (error) {
-        console.warn('[auth-context] Token no valido o expirado:', error.message);
-        if (activo) {
-          localStorage.removeItem(TOKEN_KEY);
-          setUsuario(null);
-          setToken(null);
-        }
+        console.warn('[auth-context] Token invalido o expirado:', error.message);
+        localStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+        setUsuario(null);
       } finally {
-        if (activo) setCargando(false);
+        setCargando(false);
       }
     }
 
     cargarUsuario();
-
-    return () => {
-      activo = false;
-    };
   }, []);
 
-  const login = async (datosCredenciales) => {
-    const respuesta = await apiIniciarSesion(datosCredenciales);
-    if (respuesta?.token && respuesta?.usuario) {
+  const login = async (correo, contrasena) => {
+    const respuesta = await apiIniciarSesion({ correo, contrasena });
+    if (respuesta?.requiereVerificacion || respuesta?.requiere2FA) {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUsuario(null);
+    } else if (respuesta?.token && respuesta?.usuario) {
       localStorage.setItem(TOKEN_KEY, respuesta.token);
       setToken(respuesta.token);
       setUsuario(respuesta.usuario);
@@ -103,8 +83,8 @@ export function AuthProvider({ children }) {
     return respuesta;
   };
 
-  const loginGoogle = async (credential) => {
-    const respuesta = await apiAutenticarConGoogle({ credential });
+  const loginGoogle = async (credential, rol) => {
+    const respuesta = await apiAutenticarConGoogle({ credential, rol });
     if (respuesta?.token && respuesta?.usuario) {
       localStorage.setItem(TOKEN_KEY, respuesta.token);
       setToken(respuesta.token);
@@ -151,9 +131,7 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const contexto = useContext(AuthContext);
   if (!contexto) {
-    throw new Error('useAuth debe ser utilizado dentro de un AuthProvider');
+    throw new Error('useAuth debe usarse dentro de un AuthProvider.');
   }
   return contexto;
 }
-
-export default AuthContext;

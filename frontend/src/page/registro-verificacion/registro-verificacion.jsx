@@ -40,8 +40,12 @@ function RegistroVerificacion() {
 
     try {
       setCargando(true);
-      await completarLogin2FA(userId, token2FA.trim());
-      navigate('/dashboard');
+      const res = await completarLogin2FA(userId, token2FA.trim());
+      const rol = res?.usuario?.rol;
+      if (rol === 'vendedor_repuestos') navigate('/vendedor-dashboard');
+      else if (rol === 'taller') navigate('/taller-dashboard');
+      else if (rol === 'admin') navigate('/admin-dashboard');
+      else navigate('/dashboard');
     } catch (error) {
       setErrorMsg(error.message || 'Código inválido o expirado.');
     } finally {

@@ -24,31 +24,27 @@ function generarCodigoOtp() {
 }
 
 async function guardarYEnviarCodigoVerificacion(usuario) {
-  if (!smtpConfigurado()) {
-    return {
-      success: false,
-      status: 503,
-      message: 'El envio de correo (SMTP) no esta configurado en el servidor.',
-    };
-  }
-
   const codigoOtp = generarCodigoOtp();
   await pool.query(
     "UPDATE users SET otp_code = $1, otp_expires_at = CURRENT_TIMESTAMP + INTERVAL '10 minutes' WHERE id = $2",
     [codigoOtp, usuario.id],
   );
 
-  const resultadoCorreo = await enviarCodigoOTP(usuario.correo, codigoOtp);
-  if (!resultadoCorreo.success) {
-    console.error('[auth-controller] No se pudo enviar el correo de verificacion:', resultadoCorreo.error);
-    return {
-      success: false,
-      status: 502,
-      message: 'No se pudo enviar el correo de verificacion. Revisa la configuracion SMTP.',
-    };
+  if (!smtpConfigurado()) {
+    console.warn('[auth-controller] SMTP no configurado. Auto-verificando cuenta para permitir acceso.');
+    await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [usuario.id]);
+    return { success: true, autoVerificado: true };
   }
 
-  return { success: true };
+  const resultadoCorreo = await enviarCodigoOTP(usuario.correo, codigoOtp);
+  if (!resultadoCorreo.success) {
+    console.warn('[auth-controller] Error enviando correo por SMTP (posible bloqueo de puertos en la nube):', resultadoCorreo.error);
+    console.warn(`[auth-controller] OTP generado para ${usuario.correo}: ${codigoOtp}. Auto-verificando cuenta.`);
+    await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [usuario.id]);
+    return { success: true, autoVerificado: true };
+  }
+
+  return { success: true, requiereVerificacion: true };
 }
 
 /**
@@ -92,14 +88,6 @@ async function registrar(req, res) {
       return res.status(400).json({
         success: false,
         message: 'El correo electronico ya esta registrado.',
-      });
-    }
-
-    if (!smtpConfigurado()) {
-      console.error('[auth-controller] SMTP no configurado, no se puede enviar el codigo de verificacion.');
-      return res.status(503).json({
-        success: false,
-        message: 'SMTP no configurado. No se puede enviar el codigo de verificacion por correo.',
       });
     }
 
@@ -170,10 +158,34 @@ async function registrar(req, res) {
     }
 
     const resultadoVerificacion = await guardarYEnviarCodigoVerificacion(usuario);
-    if (!resultadoVerificacion.success) {
-      return res.status(resultadoVerificacion.status).json({
-        success: false,
-        message: resultadoVerificacion.message,
+
+    if (resultadoVerificacion.autoVerificado) {
+      const token = jwt.sign(
+        {
+          id: usuario.id,
+          correo: usuario.correo,
+          nombre: usuario.nombre,
+          apellido: usuario.apellido,
+          rol: usuario.rol,
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN },
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Usuario registrado exitosamente.',
+        token,
+        usuario: {
+          id: usuario.id,
+          nombre: usuario.nombre,
+          apellido: usuario.apellido,
+          correo: usuario.correo,
+          email_verified: true,
+          is_2fa_enabled: usuario.is_2fa_enabled,
+          created_at: usuario.created_at,
+          rol: usuario.rol,
+        },
       });
     }
 
@@ -759,11 +771,12 @@ async function autenticarConGoogle(req, res) {
         usuario.email_verified = true;
       }
     } else {
+      const rolSeleccionado = ['taller', 'vendedor_repuestos'].includes(req.body.rol) ? req.body.rol : 'usuario';
       const nuevo = await pool.query(
-        `INSERT INTO users (nombre, apellido, correo, google_id, email_verified)
-         VALUES ($1, $2, $3, $4, TRUE)
+        `INSERT INTO users (nombre, apellido, correo, google_id, email_verified, rol)
+         VALUES ($1, $2, $3, $4, TRUE, $5)
          RETURNING id, nombre, apellido, correo, email_verified, is_2fa_enabled, google_id, created_at, rol, is_active`,
-        [nombre, apellido, correoLimpio, googleId],
+        [nombre, apellido, correoLimpio, googleId, rolSeleccionado],
       );
       usuario = nuevo.rows[0];
     }

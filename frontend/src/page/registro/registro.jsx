@@ -169,7 +169,10 @@ function Registro() {
           state: { userId: res.userId, correo: res.correo },
         });
       } else {
-        navigate('/dashboard');
+        const rolDestino = res?.usuario?.rol || rolSeleccionado;
+        if (rolDestino === 'vendedor_repuestos') navigate('/vendedor-dashboard');
+        else if (rolDestino === 'taller') navigate('/taller-dashboard');
+        else navigate('/dashboard');
       }
     } catch (error) {
       setErrorMsg(error.message || 'Error al registrar el usuario.');
@@ -205,8 +208,12 @@ function Registro() {
     try {
       setCargando(true);
       setErrorMsg('');
-      await loginGoogle(credential);
-      navigate('/dashboard');
+      const res = await loginGoogle(credential);
+      const rolDestino = res?.usuario?.rol;
+      if (rolDestino === 'vendedor_repuestos') navigate('/vendedor-dashboard');
+      else if (rolDestino === 'taller') navigate('/taller-dashboard');
+      else if (rolDestino === 'admin') navigate('/admin-dashboard');
+      else navigate('/dashboard');
     } catch (error) {
       setErrorMsg(error.message || 'Error al registrarse con Google.');
     } finally {
