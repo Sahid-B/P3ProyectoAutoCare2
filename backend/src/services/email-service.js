@@ -8,7 +8,7 @@ try {
   // Ignorar en entornos node donde no este disponible
 }
 
-// Configuracion SMTP y HTTP API
+// Configuracion SMTP y APIs de Correo
 const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_SECURE = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
@@ -16,10 +16,11 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const SMTP_FROM = process.env.SMTP_FROM || (SMTP_USER ? `AutoCare Security <${SMTP_USER}>` : 'AutoCare Security <noreply@autocare.com>');
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
-/** Indica si hay configuracion de correo suficiente (SMTP o Resend API). */
+/** Indica si hay configuracion de correo suficiente. */
 function smtpConfigurado() {
-  return Boolean(RESEND_API_KEY || (SMTP_USER && SMTP_PASS));
+  return Boolean(BREVO_API_KEY || RESEND_API_KEY || (SMTP_USER && SMTP_PASS));
 }
 
 let transporter = null;
@@ -48,7 +49,7 @@ function obtenerTransporter() {
 
 /**
  * Envia un codigo de verificacion de 6 digitos (segundo factor / activacion por correo).
- * Soporta tanto Resend HTTP API (Puerto 443, inmune a bloqueos cloud) como SMTP de Gmail.
+ * Soporta Brevo API, Resend HTTP API y SMTP de Gmail.
  */
 async function enviarCodigoOTP(destinatario, codigoOtp) {
   const htmlContent = `
@@ -77,7 +78,37 @@ async function enviarCodigoOTP(destinatario, codigoOtp) {
     </div>
   `;
 
-  // 1. Si existe RESEND_API_KEY, usar Resend REST API sobre HTTPS (Puerto 443 - Nunca bloqueado en Render/Cloud)
+  // 1. Si existe BREVO_API_KEY, usar Brevo REST API sobre HTTPS (Puerto 443 - Permite enviar a CUALQUIER correo gratis)
+  if (BREVO_API_KEY) {
+    try {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'api-key': BREVO_API_KEY,
+        },
+        body: JSON.stringify({
+          sender: { name: 'AutoCare Security', email: process.env.BREVO_SENDER || SMTP_USER || 'sahibosq@gmail.com' },
+          to: [{ email: destinatario }],
+          subject: `[AutoCare] Codigo de verificacion: ${codigoOtp}`,
+          htmlContent: htmlContent,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        console.log(`[email-service] Correo enviado via Brevo API a ${destinatario} (ID: ${data.messageId})`);
+        return { success: true, messageId: data.messageId };
+      } else {
+        console.error('[email-service] Error de Brevo API:', data);
+      }
+    } catch (err) {
+      console.error('[email-service] Excepcion conectando a Brevo API:', err.message);
+    }
+  }
+
+  // 2. Si existe RESEND_API_KEY, usar Resend REST API sobre HTTPS (Puerto 443)
   if (RESEND_API_KEY) {
     try {
       const response = await fetch('https://api.resend.com/emails', {
@@ -106,10 +137,10 @@ async function enviarCodigoOTP(destinatario, codigoOtp) {
     }
   }
 
-  // 2. Intentar transporte SMTP de Gmail si no hay Resend o si fallo
+  // 3. Intentar transporte SMTP de Gmail
   const tx = obtenerTransporter();
   if (!tx) {
-    console.warn('[email-service] Servicio de correo no configurado (falta RESEND_API_KEY o credenciales SMTP).');
+    console.warn('[email-service] Servicio de correo no configurado (falta BREVO_API_KEY, RESEND_API_KEY o credenciales SMTP).');
     return { success: false, error: 'Correo no configurado' };
   }
 
