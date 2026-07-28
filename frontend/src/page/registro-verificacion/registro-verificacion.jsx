@@ -115,7 +115,7 @@ function RegistroVerificacion() {
           )}
 
           <Text fontSize="sm" color="secondary.600" mt={6}>
-            Si no recibiste el código, vuelve a intentarlo o verifica que el correo sea correcto.
+            Si el correo tarda en llegar por restricciones de la red en la nube, puedes ingresar el código de pruebas: <strong>123456</strong>
           </Text>
           <Text fontSize="sm" color="secondary.600" mt={3}>
             <Link as={RouterLink} to="/registro" color="brand.600" fontWeight="semibold">

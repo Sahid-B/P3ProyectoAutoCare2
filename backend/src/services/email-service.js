@@ -1,52 +1,59 @@
 const nodemailer = require('nodemailer');
 const dns = require('dns');
-// Forzar IPv4 para evitar problemas de ruteo IPv6 (ENETUNREACH) en Render
-dns.setDefaultResultOrder('ipv4first');
-// Configuracion SMTP leida EXCLUSIVAMENTE de variables de entorno.
-// No hay credenciales en el codigo. Si SMTP no esta configurado, el envio de
-// correo se desactiva de forma controlada (no bloquea el arranque del backend).
-const SMTP_HOST = process.env.SMTP_HOST;
+
+// Forzar preferiblemente IPv4 para evitar problemas de ruteo IPv6 (ENETUNREACH) en proveedores cloud como Render
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (e) {
+  // Ignorar en entornos node donde no este disponible
+}
+
+// Configuracion SMTP leida de variables de entorno
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_SECURE = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
-const SMTP_FROM = process.env.SMTP_FROM || (SMTP_USER ? `AutoCare <${SMTP_USER}>` : undefined);
+const SMTP_FROM = process.env.SMTP_FROM || (SMTP_USER ? `AutoCare Security <${SMTP_USER}>` : 'AutoCare Security <noreply@autocare.com>');
 
 /** Indica si hay configuracion SMTP suficiente para enviar correos. */
 function smtpConfigurado() {
-  return Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS);
+  return Boolean(SMTP_USER && SMTP_PASS);
 }
 
 let transporter = null;
 function obtenerTransporter() {
   if (!smtpConfigurado()) return null;
   if (!transporter) {
-    const transportConfig = {
-      auth: { user: SMTP_USER, pass: SMTP_PASS }
-    };
-    
-    // Render tiene problemas de ruteo IPv6 con smtp.gmail.com.
-    // Usar 'service: gmail' hace que nodemailer gestione mejor la conexion.
-    if (SMTP_HOST === 'smtp.gmail.com') {
-      transportConfig.service = 'gmail';
-    } else {
-      transportConfig.host = SMTP_HOST;
-      transportConfig.port = SMTP_PORT;
-      transportConfig.secure = SMTP_SECURE;
-    }
-
-    transporter = nodemailer.createTransport(transportConfig);
+    // Transporte SMTP ultra-compatible con Gmail y servidores cloud (Render / Heroku)
+    transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE, // false para puerto 587 (STARTTLS)
+      requireTLS: !SMTP_SECURE,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false, // Permite handshakes SSL tras proxies o en contenedores cloud
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
+    });
   }
   return transporter;
 }
 
 /**
- * Envia un codigo de verificacion de 6 digitos (segundo factor por correo).
- * Devuelve { success, error } sin lanzar excepciones ni imprimir credenciales.
+ * Envia un codigo de verificacion de 6 digitos (segundo factor / activacion por correo).
+ * Devuelve { success, messageId, error } sin lanzar excepciones.
  */
 async function enviarCodigoOTP(destinatario, codigoOtp) {
   const tx = obtenerTransporter();
   if (!tx) {
+    console.warn('[email-service] SMTP no configurado en el servidor.');
     return { success: false, error: 'SMTP no configurado' };
   }
 
@@ -81,10 +88,10 @@ async function enviarCodigoOTP(destinatario, codigoOtp) {
         </div>
       `,
     });
+    console.log(`[email-service] Correo enviado exitosamente a ${destinatario} (ID: ${info.messageId})`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    // No se imprime usuario, contrasena ni el contenido del correo.
-    console.error('[email-service] Error enviando correo OTP (revisa la configuracion SMTP).');
+    console.error('[email-service] Error enviando correo OTP:', error.message);
     return { success: false, error: error.message };
   }
 }
